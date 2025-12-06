@@ -16,6 +16,8 @@ Crimewatch Intel is a tactical dashboard designed for analyzing, classifying, an
     *   **Geospatial Map**: Leaflet.js dark-mode map for physical tracking of events.
 *   **Tactical HUD**: Real-time metrics on Threat Condition, Active Factions, and Volatility.
 
+<img width="1568" height="928" alt="community-watch" src="https://github.com/user-attachments/assets/bd57848c-2c00-4245-b4f4-0b8a8e6d95f2" />
+
 ## 🛠️ Tech Stack
 
 *   **Frontend**: React 19, Tailwind CSS
