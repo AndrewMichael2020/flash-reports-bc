@@ -1,0 +1,61 @@
+[
+  {
+    "name": "Vancouver Police Department",
+    "jurisdiction": "BC",
+    "category": "Municipal Police",
+    "base_url": "https://vpd.ca",
+    "endpoints": [
+      {
+        "kind": "HTML_PAGER",
+        "label": "News",
+        "url": "https://vpd.ca/news/",
+        "http_status": 200,
+        "is_working": true
+      },
+      {
+        "kind": "RSS_NATIVE",
+        "label": "News RSS",
+        "url": "https://vpd.ca/news/rss.xml",
+        "http_status": 200,
+        "is_working": true
+      }
+    ]
+  },
+  {
+    "name": "Calgary Police Service",
+    "jurisdiction": "AB",
+    "category": "Municipal Police",
+    "base_url": "https://www.calgary.ca/cps.html",
+    "endpoints": [
+      {
+        "kind": "HTML_PAGER",
+        "label": "Police News Releases",
+        "url": "https://www.calgary.ca/cps/public-services/news.html",
+        "http_status": 200,
+        "is_working": true
+      }
+    ]
+  },
+  {
+    "name": "Seattle Police Department",
+    "jurisdiction": "WA",
+    "category": "Municipal Police",
+    "base_url": "https://www.seattle.gov/police",
+    "endpoints": [
+      {
+        "kind": "HTML_PAGER",
+        "label": "SPD Blotter",
+        "url": "https://spdblotter.seattle.gov/",
+        "http_status": 200,
+        "is_working": true
+      },
+      {
+        "kind": "RSS_NATIVE",
+        "label": "SPD Blotter RSS",
+        "url": "https://spdblotter.seattle.gov/feed/",
+        "http_status": 200,
+        "is_working": true
+      }
+    ]
+  }
+]
