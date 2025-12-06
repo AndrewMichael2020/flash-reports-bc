@@ -55,3 +55,40 @@ class IncidentsResponse(BaseModel):
     """Response from GET /api/incidents."""
     region: str
     incidents: List[IncidentResponse]
+
+
+class GraphNode(BaseModel):
+    """Node in the network graph."""
+    id: str
+    label: str
+    type: str  # "incident" | "person" | "group" | "location"
+    severity: Optional[str] = None
+
+
+class GraphLink(BaseModel):
+    """Link between nodes in the graph."""
+    source: str
+    target: str
+    type: str  # "involved" | "occurred_at" | "related_to"
+
+
+class GraphResponse(BaseModel):
+    """Response from GET /api/graph."""
+    region: str
+    nodes: List[GraphNode]
+    links: List[GraphLink]
+
+
+class MapMarker(BaseModel):
+    """Map marker for a single incident."""
+    incidentId: str
+    lat: float
+    lng: float
+    severity: str
+    label: str
+
+
+class MapResponse(BaseModel):
+    """Response from GET /api/map."""
+    region: str
+    markers: List[MapMarker]
