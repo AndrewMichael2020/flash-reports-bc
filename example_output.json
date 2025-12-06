@@ -1,0 +1,136 @@
+[
+  {
+    "name": "BC RCMP",
+    "jurisdiction": "BC",
+    "category": "RCMP",
+    "base_url": "https://rcmp.ca/en/bc",
+    "endpoints": [
+      {
+        "kind": "HTML_PAGER",
+        "label": "BC RCMP News",
+        "url": "https://rcmp.ca/en/bc/news",
+        "http_status": 200,
+        "is_working": true
+      }
+    ]
+  },
+  {
+    "name": "Surrey Police Service",
+    "jurisdiction": "BC",
+    "category": "Municipal Police",
+    "base_url": "https://www.surreypolice.ca",
+    "endpoints": [
+      {
+        "kind": "HTML_PAGER",
+        "label": "News Releases",
+        "url": "https://www.surreypolice.ca/news-releases",
+        "http_status": 200,
+        "is_working": true
+      }
+    ]
+  },
+  {
+    "name": "Alberta RCMP",
+    "jurisdiction": "AB",
+    "category": "RCMP",
+    "base_url": "https://rcmp.ca/en/alberta",
+    "endpoints": [
+      {
+        "kind": "HTML_PAGER",
+        "label": "Alberta RCMP News",
+        "url": "https://rcmp.ca/en/alberta/news",
+        "http_status": 200,
+        "is_working": true
+      }
+    ]
+  },
+  {
+    "name": "Edmonton Police Service",
+    "jurisdiction": "AB",
+    "category": "Municipal Police",
+    "base_url": "https://www.edmontonpolice.ca",
+    "endpoints": [
+      {
+        "kind": "HTML_PAGER",
+        "label": "Media Releases",
+        "url": "https://www.edmontonpolice.ca/News/MediaReleases",
+        "http_status": 200,
+        "is_working": true
+      }
+    ]
+  },
+  {
+    "name": "Washington State Patrol",
+    "jurisdiction": "WA",
+    "category": "State Police",
+    "base_url": "https://wsp.wa.gov",
+    "endpoints": [
+      {
+        "kind": "HTML_PAGER",
+        "label": "Media Releases",
+        "url": "https://wsp.wa.gov/media/media-releases/",
+        "http_status": 200,
+        "is_working": true
+      }
+    ]
+  },
+  {
+    "name": "Seattle Police Department",
+    "jurisdiction": "WA",
+    "category": "Municipal Police",
+    "base_url": "https://spdblotter.seattle.gov",
+    "endpoints": [
+      {
+        "kind": "HTML_PAGER",
+        "label": "SPD Blotter",
+        "url": "https://spdblotter.seattle.gov/",
+        "http_status": 200,
+        "is_working": true
+      },
+      {
+        "kind": "RSS_NATIVE",
+        "label": "SPD Blotter RSS",
+        "url": "https://spdblotter.seattle.gov/feed/",
+        "http_status": 200,
+        "is_working": true
+      }
+    ]
+  },
+  {
+    "name": "Spokane Police Department",
+    "jurisdiction": "WA",
+    "category": "Municipal Police",
+    "base_url": "https://my.spokanecity.org/police/",
+    "endpoints": [
+      {
+        "kind": "HTML_PAGER",
+        "label": "Police News This Year",
+        "url": "https://my.spokanecity.org/police/news/this-year/",
+        "http_status": 200,
+        "is_working": true
+      }
+    ]
+  },
+  {
+    "name": "Spokane County Sheriff's Office",
+    "jurisdiction": "WA",
+    "category": "Sheriff",
+    "base_url": "https://www.spokanecounty.org/1316/Sheriffs-Office",
+    "endpoints": [
+      {
+        "kind": "HTML_PAGER",
+        "label": "Media Release Information",
+        "url": "https://www.spokanecounty.gov/3954/Media-Release-Information",
+        "http_status": 200,
+        "is_working": true
+      },
+      {
+        "kind": "HTML_PAGER",
+        "label": "Press Releases (alternate)",
+        "url": "https://www.spokanecounty.org/1622/Press-Releases",
+        "http_status": 200,
+        "is_working": true
+      }
+    ]
+  }
+]
