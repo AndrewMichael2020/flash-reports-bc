@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Evolving Architecture of Truth | Interrogation Frameworks Analysis</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        h1, h2, h3, .mono { font-family: 'JetBrains Mono', monospace; }
+        
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 600px;
+            margin: 0 auto;
+            height: 350px;
+            max-height: 400px;
+        }
+
+        /* Custom Scrollbar for clean look */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #94a3b8; 
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #64748b; 
+        }
+
+        .tab-active {
+            border-bottom: 3px solid #0f172a;
+            color: #0f172a;
+            font-weight: 600;
+        }
+        .tab-inactive {
+            color: #64748b;
+            border-bottom: 3px solid transparent;
+        }
+        .tab-inactive:hover {
+            color: #334155;
+            border-bottom: 3px solid #e2e8f0;
+        }
+        
+        /* Fade in animation */
+        .fade-in {
+            animation: fadeIn 0.4s ease-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .tech-card-active {
+            border-color: #3b82f6;
+            background-color: #eff6ff;
+            box-shadow: 0 4px 6px -1px rgba(59, 130, 246, 0.1), 0 2px 4px -1px rgba(59, 130, 246, 0.06);
+        }
+
+        .sue-step:hover {
+            filter: brightness(1.1);
+            transform: scale(1.02);
+            cursor: help;
+        }
+    </style>
+    <!-- Chosen Palette: "Clinical Forensic" -->
+</head>
+<body class="bg-slate-50 text-slate-800 antialiased selection:bg-slate-200">
+
+    <!-- Header -->
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-50 shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <div class="flex items-center gap-3">
+                    <div class="w-3 h-3 bg-blue-600 rounded-full animate-pulse"></div>
+                    <div>
+                        <h1 class="text-xl font-bold tracking-tight text-slate-900 uppercase leading-none">Forensic Truth <span class="text-slate-400 font-normal">| Analysis Platform</span></h1>
+                        <div class="text-[10px] text-slate-400 font-mono mt-1 uppercase tracking-wider">Inspired by Law and Crime Network Analysis</div>
+                    </div>
+                </div>
+                <nav class="hidden md:flex space-x-8">
+                    <button onclick="scrollToSection('paradigm')" class="text-sm font-medium text-slate-600 hover:text-slate-900 transition">Paradigm Shift</button>
+                    <button onclick="scrollToSection('frameworks')" class="text-sm font-medium text-slate-600 hover:text-slate-900 transition">Methodology</button>
+                    <button onclick="scrollToSection('tech')" class="text-sm font-medium text-slate-600 hover:text-slate-900 transition">Digital Siege</button>
+                    <button onclick="scrollToSection('cases')" class="text-sm font-medium text-slate-600 hover:text-slate-900 transition">Case Lab</button>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 space-y-24">
+
+        <!-- Section 1: The Paradigm Shift -->
+        <section id="paradigm" class="scroll-mt-24">
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+                <div class="lg:col-span-5 space-y-6">
+                    <div class="inline-block px-3 py-1 bg-slate-100 text-slate-600 rounded text-xs font-mono font-bold uppercase tracking-wider">Executive Summary</div>
+                    <h2 class="text-4xl font-extrabold text-slate-900 tracking-tight">The Architecture of Truth</h2>
+                    <p class="text-lg text-slate-600 leading-relaxed">
+                        US interrogation is undergoing a fundamental epistemological transformation. The field is pivoting from an <strong class="text-red-600">Accusatory Model</strong> (intuition-based pressure) to an <strong class="text-emerald-600">Information-Gathering Model</strong> (science-based intelligence).
+                    </p>
+                    <p class="text-slate-600">
+                        This shift is driven by the alarming prevalence of false confessions and the rigorous scientific critique of traditional deception cues. The modern investigator must now operate as a "Cognitive Manager" within a <span class="font-mono text-blue-600 bg-blue-50 px-1">"Digital Siege"</span>.
+                    </p>
+                    <div class="p-4 bg-white border-l-4 border-blue-500 shadow-sm rounded-r-lg">
+                        <p class="text-sm font-medium text-slate-800 italic">
+                            "The goal has shifted from 'getting the guy to talk' to 'getting the guy to talk in a way that stands up in court'."
+                        </p>
+                    </div>
+                </div>
+                <div class="lg:col-span-7 bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                    <div class="flex justify-between items-center mb-6">
+                        <h3 class="text-sm font-bold uppercase text-slate-500 tracking-wider">Risk vs. Reward Analysis</h3>
+                        <div class="flex gap-4 text-xs">
+                            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-red-500"></span> False Confession Risk</span>
+                            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-emerald-500"></span> Info Validity</span>
+                        </div>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="paradigmChart"></canvas>
+                    </div>
+                    <p class="mt-4 text-xs text-center text-slate-400">Based on Campbell Systematic Reviews (2024) & Empirical Behavioral Science Data</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 2: Framework Hierarchy -->
+        <section id="frameworks" class="scroll-mt-24">
+            <div class="text-center max-w-3xl mx-auto mb-12">
+                <h2 class="text-3xl font-bold text-slate-900 mb-4">Hierarchy of Frameworks</h2>
+                <p class="text-slate-600">
+                    A comprehensive ranking of interrogation models based on scientific validity and operational efficacy.
+                    Click the tabs below to compare the "Old Guard" against modern scientific protocols.
+                </p>
+            </div>
+
+            <div class="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden">
+                <!-- Tabs -->
+                <div class="flex border-b border-slate-200">
+                    <button onclick="updateFramework('reid')" id="tab-reid" class="flex-1 py-4 text-center transition bg-slate-50 tab-inactive">
+                        <span class="block text-xs font-mono uppercase tracking-wider mb-1">Tier 3 (Traditional)</span>
+                        <span class="text-lg">The Reid Technique</span>
+                    </button>
+                    <button onclick="updateFramework('wz')" id="tab-wz" class="flex-1 py-4 text-center transition bg-slate-50 tab-inactive">
+                        <span class="block text-xs font-mono uppercase tracking-wider mb-1">Tier 2 (Hybrid)</span>
+                        <span class="text-lg">Wicklander-Zulawski</span>
+                    </button>
+                    <button onclick="updateFramework('peace')" id="tab-peace" class="flex-1 py-4 text-center transition bg-slate-50 tab-active">
+                        <span class="block text-xs font-mono uppercase tracking-wider mb-1">Tier 1 (Science-Based)</span>
+                        <span class="text-lg">PEACE / HIG</span>
+                    </button>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2">
+                    <!-- Content Panel -->
+                    <div class="p-8 lg:border-r border-slate-200 bg-slate-50/50">
+                        <h3 id="fw-title" class="text-2xl font-bold text-slate-900 mb-2">PEACE Model</h3>
+                        <div id="fw-badge" class="inline-block px-2 py-1 bg-emerald-100 text-emerald-800 text-xs font-bold rounded mb-6">Science-Based Standard</div>
+                        
+                        <div class="space-y-6">
+                            <div>
+                                <h4 class="text-sm font-bold text-slate-900 uppercase tracking-wide mb-2">Core Philosophy</h4>
+                                <p id="fw-desc" class="text-slate-600 text-sm leading-relaxed">
+                                    Rejects the teleological drive toward confession. Prioritizes the generation of a complete, accurate record via neutral inquiry. Leverages cognitive load rather than emotional pressure.
+                                </p>
+                            </div>
+                            
+                            <div class="grid grid-cols-2 gap-4">
+                                <div class="bg-white p-4 rounded border border-slate-200">
+                                    <span class="block text-xs text-slate-400 uppercase">Primary Goal</span>
+                                    <span id="fw-goal" class="block font-medium text-slate-800">Accurate Account</span>
+                                </div>
+                                <div class="bg-white p-4 rounded border border-slate-200">
+                                    <span class="block text-xs text-slate-400 uppercase">Risk Profile</span>
+                                    <span id="fw-risk" class="block font-medium text-emerald-600">Low (Validation Focus)</span>
+                                </div>
+                            </div>
+
+                            <div>
+                                <h4 class="text-sm font-bold text-slate-900 uppercase tracking-wide mb-2">Key Mechanism</h4>
+                                <ul id="fw-mechanisms" class="text-sm text-slate-600 space-y-2 list-disc list-inside">
+                                    <li>Planning & Preparation (Mastering the case)</li>
+                                    <li>Engage & Explain (Professional transparency)</li>
+                                    <li>Free Recall (Cognitive data collection)</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Radar Chart Panel -->
+                    <div class="p-8 flex flex-col items-center justify-center bg-white">
+                        <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Qualitative Assessment</h4>
+                        <div class="chart-container">
+                            <canvas id="frameworkRadar"></canvas>
+                        </div>
+                        <div class="mt-4 text-center">
+                            <p id="fw-stat-caption" class="text-xs text-slate-500 italic">
+                                High "Scientific Validity" and "Information Yield" characterize Tier 1 methods.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 3: The Digital Siege & Tech -->
+        <section id="tech" class="scroll-mt-24">
+            <div class="mb-12">
+                <h2 class="text-3xl font-bold text-slate-900 mb-4">The Digital Siege & Cognitive Tools</h2>
+                <p class="text-slate-600 max-w-3xl">
+                    The interrogation room is no longer a hermetically sealed environment. It is a digital panopticon where statements are instantly stress-tested against objective data. 
+                    <span class="text-blue-600 font-medium">Select a technology below to view operational specifications.</span>
+                </p>
+            </div>
+
+            <!-- Tech Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                <!-- Polygraph -->
+                <div onclick="updateTech('poly')" id="tech-card-poly" class="bg-white p-6 rounded-xl border border-slate-200 hover:shadow-lg transition group cursor-pointer">
+                    <div class="text-3xl mb-3">📉</div>
+                    <h3 class="font-bold text-slate-900 mb-2">Polygraph</h3>
+                    <p class="text-xs text-slate-500 mb-3 uppercase tracking-wide">The "Bogus Pipeline"</p>
+                    <p class="text-sm text-slate-600">
+                        Measures autonomic arousal (heart rate). Scientifically skeptical but effective as a placebo.
+                    </p>
+                </div>
+                <!-- EyeDetect -->
+                <div onclick="updateTech('eye')" id="tech-card-eye" class="bg-white p-6 rounded-xl border border-slate-200 hover:shadow-lg transition group cursor-pointer">
+                    <div class="text-3xl mb-3">👁️</div>
+                    <h3 class="font-bold text-slate-900 mb-2">EyeDetect</h3>
+                    <p class="text-xs text-blue-500 mb-3 uppercase tracking-wide">Ocular-Motor</p>
+                    <p class="text-sm text-slate-600">
+                        Tracks pupil dilation and blink rate based on cognitive load theory.
+                    </p>
+                </div>
+                <!-- AVATAR -->
+                <div onclick="updateTech('avatar')" id="tech-card-avatar" class="bg-white p-6 rounded-xl border border-slate-200 hover:shadow-lg transition group cursor-pointer">
+                    <div class="text-3xl mb-3">🤖</div>
+                    <h3 class="font-bold text-slate-900 mb-2">AVATAR</h3>
+                    <p class="text-xs text-slate-500 mb-3 uppercase tracking-wide">AI Kiosk</p>
+                    <p class="text-sm text-slate-600">
+                        Automated interviewing tracking kinesics and vocalics against a baseline.
+                    </p>
+                </div>
+                <!-- Computer Vision -->
+                <div onclick="updateTech('cv')" id="tech-card-cv" class="bg-white p-6 rounded-xl border border-slate-200 hover:shadow-lg transition group cursor-pointer">
+                    <div class="text-3xl mb-3">🎥</div>
+                    <h3 class="font-bold text-slate-900 mb-2">Computer Vision</h3>
+                    <p class="text-xs text-slate-500 mb-3 uppercase tracking-wide">Optical Flow</p>
+                    <p class="text-sm text-slate-600">
+                        Detects micro-movements and kinetic energy spikes invisible to the naked eye.
+                    </p>
+                </div>
+            </div>
+
+            <!-- Interactive Detail Panel -->
+            <div id="tech-detail-panel" class="bg-blue-50 border border-blue-100 rounded-xl p-6 hidden fade-in mb-16">
+                <h3 id="tech-detail-title" class="text-lg font-bold text-blue-900 mb-4">Technical Specification</h3>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div>
+                        <span class="block text-xs uppercase text-blue-400 font-bold mb-1">Physiological Marker</span>
+                        <div id="tech-marker" class="text-blue-800 font-medium">Autonomic Arousal</div>
+                    </div>
+                    <div>
+                        <span class="block text-xs uppercase text-blue-400 font-bold mb-1">Error Rate (Est.)</span>
+                        <div id="tech-error" class="text-blue-800 font-medium">~15-20% False Positive</div>
+                    </div>
+                    <div>
+                        <span class="block text-xs uppercase text-blue-400 font-bold mb-1">Court Admissibility</span>
+                        <div id="tech-court" class="text-blue-800 font-medium">Generally Inadmissible</div>
+                    </div>
+                </div>
+                <div class="mt-4 pt-4 border-t border-blue-200">
+                    <span class="block text-xs uppercase text-blue-400 font-bold mb-1">Tactical Utility</span>
+                    <p id="tech-utility" class="text-sm text-blue-800">Used primarily as a prop to induce anxiety in guilty subjects (The Placebo Effect).</p>
+                </div>
+            </div>
+
+            <!-- SUE Funnel Interaction -->
+            <div class="bg-slate-900 rounded-2xl p-8 lg:p-12 text-white">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+                    <div>
+                        <h3 class="text-2xl font-bold font-mono mb-2 text-emerald-400">Strategic Use of Evidence (SUE)</h3>
+                        <p class="text-slate-400 text-xs uppercase tracking-widest mb-6">Interactive Tactical Funnel</p>
+                        
+                        <div id="sue-description-box" class="bg-slate-800/50 border border-slate-700 p-6 rounded-lg min-h-[180px] transition-all duration-300">
+                            <h4 id="sue-step-title" class="text-lg font-bold text-white mb-2">The Funnel Concept</h4>
+                            <p id="sue-step-desc" class="text-sm text-slate-300 leading-relaxed">
+                                The most significant tactical advancement in interviewing. Instead of revealing evidence early (Reid), the investigator withholds it to allow the suspect to lie. 
+                                <br><br>
+                                <span class="text-emerald-400 italic">Hover over the funnel stages on the right to analyze the tactical psychology of each step.</span>
+                            </p>
+                        </div>
+                    </div>
+                    
+                    <!-- Visual Funnel -->
+                    <div class="flex flex-col items-center space-y-2 cursor-default">
+                        <div onmouseenter="updateSUE('funnel')" class="sue-step w-full bg-slate-800 p-4 text-center rounded border border-slate-700 transition-all duration-300 relative group">
+                            <span class="text-xs uppercase tracking-widest text-slate-400 group-hover:text-white">1. Suspect's Story (Open)</span>
+                            <div class="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 text-emerald-400">→</div>
+                        </div>
+                        <div onmouseenter="updateSUE('commitment')" class="sue-step w-3/4 bg-slate-800 p-4 text-center rounded border border-slate-700 transition-all duration-300 relative group">
+                            <span class="text-xs uppercase tracking-widest text-slate-400 group-hover:text-white">2. Specific Details</span>
+                            <div class="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 text-emerald-400">→</div>
+                        </div>
+                        <div onmouseenter="updateSUE('lock')" class="sue-step w-1/2 bg-slate-700 p-4 text-center rounded border border-slate-600 ring-2 ring-emerald-500 transition-all duration-300 relative group shadow-[0_0_15px_rgba(16,185,129,0.3)]">
+                            <span class="text-sm font-bold text-emerald-400">3. Statement Secured</span>
+                        </div>
+                        <div class="h-8 w-1 bg-slate-600"></div>
+                        <div onmouseenter="updateSUE('trap')" class="sue-step w-full bg-red-900/50 p-6 text-center rounded border border-red-500/50 transition-all duration-300 relative group">
+                            <span class="text-red-400 font-bold font-mono group-hover:text-red-300">4. Evidence Disclosure</span>
+                            <div class="text-xs text-red-500 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">COGNITIVE COLLAPSE DETECTED</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 4: Case Lab -->
+        <section id="cases" class="scroll-mt-24 pb-12">
+            <h2 class="text-3xl font-bold text-slate-900 mb-2">Forensic Case Lab</h2>
+            <p class="text-slate-500 mb-8">Deconstructed behavioral analysis and interrogation strategy breakdowns.</p>
+            
+            <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                <!-- Case Selector -->
+                <div class="space-y-2">
+                    <button onclick="loadCase(0)" id="case-btn-0" class="case-btn w-full text-left p-4 rounded-lg border bg-white hover:bg-slate-50 transition border-blue-500 ring-1 ring-blue-500 shadow-sm">
+                        <div class="text-xs font-mono text-slate-500 mb-1">CASE 001</div>
+                        <div class="font-bold text-slate-900">Alex Rojas</div>
+                    </button>
+                    <button onclick="loadCase(1)" id="case-btn-1" class="case-btn w-full text-left p-4 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 transition">
+                        <div class="text-xs font-mono text-slate-500 mb-1">CASE 002</div>
+                        <div class="font-bold text-slate-900">Lente Lazar</div>
+                    </button>
+                    <button onclick="loadCase(2)" id="case-btn-2" class="case-btn w-full text-left p-4 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 transition">
+                        <div class="text-xs font-mono text-slate-500 mb-1">CASE 003</div>
+                        <div class="font-bold text-slate-900">Robert Beaver</div>
+                    </button>
+                    <button onclick="loadCase(3)" id="case-btn-3" class="case-btn w-full text-left p-4 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 transition">
+                        <div class="text-xs font-mono text-slate-500 mb-1">CASE 004</div>
+                        <div class="font-bold text-slate-900">Ofc. Solorio</div>
+                    </button>
+                </div>
+
+                <!-- Case Display -->
+                <div class="lg:col-span-3 bg-white rounded-2xl border border-slate-200 shadow-sm fade-in overflow-hidden">
+                    <!-- Case Header -->
+                    <div class="bg-slate-900 p-8 text-white">
+                        <div class="flex flex-col md:flex-row justify-between items-start">
+                            <div>
+                                <span class="text-emerald-400 font-mono text-xs uppercase tracking-widest mb-2 block">Case File Declassified</span>
+                                <h3 id="case-title" class="text-3xl font-bold">Alex Aguilera Rojas</h3>
+                                <div class="flex gap-2 mt-3">
+                                    <span id="case-tag" class="px-2 py-1 bg-slate-700 text-slate-200 text-xs font-bold rounded uppercase">Inconsistency</span>
+                                    <span id="case-outcome" class="px-2 py-1 bg-emerald-900/50 text-emerald-400 border border-emerald-500/50 text-xs font-bold rounded uppercase">Full Confession</span>
+                                </div>
+                            </div>
+                            <div class="mt-4 md:mt-0 text-right hidden md:block">
+                                <div class="text-slate-400 text-xs font-mono">EVIDENCE INTEGRITY</div>
+                                <div class="flex gap-1 justify-end mt-1">
+                                    <div class="w-1 h-3 bg-emerald-500"></div>
+                                    <div class="w-1 h-3 bg-emerald-500"></div>
+                                    <div class="w-1 h-3 bg-emerald-500"></div>
+                                    <div class="w-1 h-3 bg-slate-600"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="p-8">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+                            <div>
+                                <h4 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Psychological Profile</h4>
+                                <p id="case-psych" class="text-slate-800 text-sm font-medium border-l-2 border-blue-500 pl-4 py-1 bg-slate-50">
+                                    Low sophistication, high emotional reactivity. Dependent personality structure susceptible to authority figures.
+                                </p>
+                            </div>
+                            <div>
+                                <h4 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Interrogation Strategy</h4>
+                                <p id="case-strategy" class="text-slate-800 text-sm font-medium border-l-2 border-amber-500 pl-4 py-1 bg-slate-50">
+                                    Theme Development: "Good Person, Bad Situation." Minimizing the moral implication of the act, not the act itself.
+                                </p>
+                            </div>
+                        </div>
+
+                        <hr class="border-slate-100 mb-8">
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            <div>
+                                <h4 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Operational Context</h4>
+                                <p id="case-context" class="text-slate-600 text-sm leading-relaxed">
+                                    Rojas murdered Dioneth Lopez and attempted to conceal it with a "Domestic Construct." He established a false alibi as the "Wheel Man."
+                                </p>
+                            </div>
+                            <div>
+                                <h4 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Forensic Analysis</h4>
+                                <ul id="case-analysis" class="text-sm text-slate-600 space-y-3">
+                                    <!-- Dynamic List -->
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-slate-900 text-slate-400 py-12">
+        <div class="max-w-7xl mx-auto px-4 text-center space-y-4">
+            <h4 class="text-slate-100 font-bold uppercase tracking-widest">Interrogation Frameworks Report</h4>
+            <p class="text-sm max-w-2xl mx-auto">
+                "The future of interrogation is not in the 'art' of the detective, but in the science of the analyst."
+            </p>
+            <div class="pt-8 border-t border-slate-800 text-xs text-slate-600 font-mono">
+                GENERATED ANALYSIS ARTIFACT | ID: 3C04D0C1-3957
+            </div>
+        </div>
+    </footer>
+
+    <!-- Logic -->
+    <script>
+        // --- Data Storage ---
+        const frameworkData = {
+            reid: {
+                title: "The Reid Technique",
+                desc: "The 'Old Guard' of American interrogation. Relies on the BAI to diagnose deception via body language, followed by the Nine Steps of Interrogation using Maximization (pressure) and Minimization (face-saving).",
+                badge: "Traditional / Accusatory",
+                badgeColor: "bg-red-100 text-red-800",
+                goal: "Confession",
+                goalColor: "text-slate-800",
+                risk: "High (False Confessions)",
+                riskColor: "text-red-600",
+                mechanisms: [
+                    "Behavioral Analysis Interview (BAI)",
+                    "Maximization (False Evidence Ploy)",
+                    "Minimization (Moral justification themes)"
+                ],
+                chartData: [9, 3, 2, 5, 8] // Coercion, Validity, Ethics, Yield, Difficulty
+            },
+            wz: {
+                title: "Wicklander-Zulawski",
+                desc: "A transitional hybrid model dominant in the private sector. In 2017, WZ famously dropped Reid as their primary method. Uses the 'Participatory Method' to work WITH the suspect rather than against them.",
+                badge: "Hybrid / Non-Confrontational",
+                badgeColor: "bg-amber-100 text-amber-800",
+                goal: "Admission / Truth",
+                goalColor: "text-slate-800",
+                risk: "Moderate (Reduced Coercion)",
+                riskColor: "text-amber-600",
+                mechanisms: [
+                    "Participatory Method (Dialogue)",
+                    "Rationalization (Focus on 'Why' not 'Did you')",
+                    "Avoids direct confrontation"
+                ],
+                chartData: [4, 6, 6, 7, 5]
+            },
+            peace: {
+                title: "PEACE / HIG Model",
+                desc: "The gold standard for information gathering. Rejects the teleological drive toward confession. Prioritizes the generation of a complete, accurate record via neutral inquiry. Leverages cognitive load.",
+                badge: "Science-Based Standard",
+                badgeColor: "bg-emerald-100 text-emerald-800",
+                goal: "Accurate Account",
+                goalColor: "text-slate-800",
+                risk: "Low (Validation Focus)",
+                riskColor: "text-emerald-600",
+                mechanisms: [
+                    "Planning & Preparation (Mastering the case)",
+                    "Engage & Explain (Professional transparency)",
+                    "Free Recall (Cognitive data collection)"
+                ],
+                chartData: [1, 9, 9, 9, 7]
+            }
+        };
+
+        const techData = {
+            poly: {
+                title: "Polygraph",
+                marker: "Autonomic Arousal (Heart/Sweat)",
+                error: "~15-20% False Positive",
+                court: "Generally Inadmissible",
+                utility: "Tactical prop (The 'Bogus Pipeline' effect). Used to induce anxiety in guilty subjects who *believe* it works."
+            },
+            eye: {
+                title: "EyeDetect",
+                marker: "Pupil Dilation / Fixation",
+                error: "~10-12% (Lab Conditions)",
+                court: "Admissible in some jurisdictions (e.g., NM)",
+                utility: "Rapid screening. Based on the principle that constructing a lie requires more cognitive energy than recalling truth."
+            },
+            avatar: {
+                title: "AVATAR System",
+                marker: "Kinesics / Vocalics / Oculesics",
+                error: "Unknown (Proprietary)",
+                court: "Screening / Border Control",
+                utility: "Removes interviewer bias. The AI kiosk is tireless and can detect micro-signals a human might miss."
+            },
+            cv: {
+                title: "Computer Vision",
+                marker: "Micro-movements / Kinetic Energy",
+                error: "High environmental sensitivity",
+                court: "Investigative Lead Only",
+                utility: "Optical Flow algorithms can detect 'adrenaline dumps' (sudden kinetic spikes) when a sensitive topic is raised."
+            }
+        };
+
+        const caseData = [
+            {
+                title: "Alex Aguilera Rojas",
+                tag: "Statement-Evidence Inconsistency",
+                outcome: "Full Confession",
+                psych: "Low sophistication, high emotional reactivity. Dependent personality structure susceptible to authority figures.",
+                strategy: "Theme Development: 'Good Person, Bad Situation.' Minimizing the moral implication of the act, not the act itself.",
+                context: "Rojas murdered Dioneth Lopez and attempted to conceal it with a 'Domestic Construct.' He established a false alibi as the 'Wheel Man' while Agent Chad allowed him to commit to the lie.",
+                analysis: [
+                    "<strong>Digital Siege:</strong> Agent Chad used cell tower maps to trap Rojas only AFTER he committed to his false alibi.",
+                    "<strong>Freeze Response:</strong> The cognitive load of the contradiction caused behavioral decomposition.",
+                    "<strong>Minimization:</strong> Confessed using the 'self-defense' theme offered by the agent."
+                ]
+            },
+            {
+                title: "Lente Lazar",
+                tag: "Active Deception / Optical Flow",
+                outcome: "Timeline Collapse",
+                psych: "High intelligence, narcissistic traits. Uses 'Intellectualization' and verbal bridging to evade direct answers.",
+                strategy: "Cognitive Overload: Rapid-fire questioning on timeline inconsistencies to exhaust working memory.",
+                context: "Lazar killed his mother. Unlike Rojas, he used 'Intellectualization' and debated technical details (bridge statements) to signal intelligence and control the narrative.",
+                analysis: [
+                    "<strong>Computer Vision:</strong> Optical flow algorithms detected a massive kinetic energy spike (adrenaline dump) when he removed his jacket.",
+                    "<strong>Cognitive Error:</strong> The load of maintaining the lie caused him to mistakenly 'correct' his timeline, revealing guilty knowledge."
+                ]
+            },
+            {
+                title: "Robert Beaver",
+                tag: "Psychopathy & Narcissism",
+                outcome: "Ego-Driven Confession",
+                psych: "Psychopathy spectrum. Lack of empathy (Flat Affect). Grandiosity and desire for recognition.",
+                strategy: "Ego-Feeding: Complimenting the 'genius' of the plan to bypass defensive barriers. Treating him as a peer.",
+                context: "A mass family annihilation. Beaver displayed psychopathic traits and a 'Dinner Dissociation,' describing gore with flat affect. Standard pressure failed.",
+                analysis: [
+                    "<strong>The Mastermind Trap:</strong> The detective appealed to Beaver's narcissism, treating him as a 'criminal genius.'",
+                    "<strong>Legacy Motivation:</strong> Beaver confessed not out of guilt, but to ensure his 'plan' was understood and his legacy secured."
+                ]
+            },
+            {
+                title: "Ofc. Marcus Solorio",
+                tag: "Administrative / Subculture",
+                outcome: "Institutional Minimization",
+                psych: "Authoritarian, defensive. High institutional awareness. Uses 'Territoriality' to assert dominance.",
+                strategy: "Peer Identification: 'Us vs Them' framing. Using police subculture themes to lower shields.",
+                context: "A police officer interrogated for misconduct. He used 'Territoriality' (moving his radio) and 'Distraction Adaptors' (picking at hand) to manage stress.",
+                analysis: [
+                    "<strong>Cultural Insight:</strong> Solorio used 'minimization' themes common in police culture ('I was just venting').",
+                    "<strong>Theme Development:</strong> Understanding the suspect's subculture is vital for effective rapport and rationalization."
+                ]
+            }
+        ];
+
+        const sueData = {
+            funnel: {
+                title: "1. The Open Narrative",
+                desc: "The investigator asks broad, open-ended questions: 'Tell me everything you did yesterday.' <br><br><strong>Psychology:</strong> This forces the liar to commit to a story without knowing what evidence the police hold. Liars will typically keep stories vague to avoid contradictions."
+            },
+            commitment: {
+                title: "2. Specific Details",
+                desc: "The investigator zooms in on specific timeframes or details mentioned in the open narrative. <br><br><strong>Psychology:</strong> This increases Cognitive Load. The liar must invent new details that fit their previous vague story, consuming mental resources."
+            },
+            lock: {
+                title: "3. The Statement Lock",
+                desc: "The investigator summarizes the suspect's story and asks them to confirm it is the absolute truth. <br><br><strong>Psychology:</strong> This closes the trap. The suspect is now 'on the record' with a version of events that contradicts the withheld evidence."
+            },
+            trap: {
+                title: "4. Evidence Disclosure",
+                desc: "The withheld evidence (e.g., GPS data, video) is revealed. <br><br><strong>Psychology:</strong> This causes 'Cognitive Collapse.' The suspect cannot reconcile their locked statement with the hard evidence. The only remaining option is to confess or shut down."
+            }
+        };
+
+        // --- Chart Initialization ---
+        let paradigmChart, frameworkRadar;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            initParadigmChart();
+            initFrameworkRadar();
+            // Load default framework
+            updateFramework('peace');
+            // Load default case
+            loadCase(0);
+        });
+
+        function initParadigmChart() {
+            const ctx = document.getElementById('paradigmChart').getContext('2d');
+            paradigmChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['Accusatory (Reid)', 'Information-Gathering (PEACE)'],
+                    datasets: [
+                        {
+                            label: 'False Confession Risk',
+                            data: [85, 15], // Representative values based on text (4.5x higher)
+                            backgroundColor: '#ef4444',
+                            borderRadius: 6
+                        },
+                        {
+                            label: 'Information Validity',
+                            data: [45, 90], // Representative values
+                            backgroundColor: '#10b981',
+                            borderRadius: 6
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return context.dataset.label + ': ' + context.raw + (context.datasetIndex === 0 ? ' (High)' : ' (High)');
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: { beginAtZero: true, display: false },
+                        x: { grid: { display: false } }
+                    }
+                }
+            });
+        }
+
+        function initFrameworkRadar() {
+            const ctx = document.getElementById('frameworkRadar').getContext('2d');
+            frameworkRadar = new Chart(ctx, {
+                type: 'radar',
+                data: {
+                    labels: ['Coercion Risk', 'Scientific Validity', 'Ethics', 'Info Yield', 'Interviewer Skill Reqd'],
+                    datasets: [{
+                        label: 'PEACE Model',
+                        data: [1, 9, 9, 9, 7],
+                        backgroundColor: 'rgba(16, 185, 129, 0.2)',
+                        borderColor: '#10b981',
+                        pointBackgroundColor: '#10b981',
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        r: {
+                            angleLines: { color: '#e2e8f0' },
+                            grid: { color: '#e2e8f0' },
+                            pointLabels: {
+                                font: { size: 10, weight: 'bold' },
+                                color: '#64748b'
+                            },
+                            suggestedMin: 0,
+                            suggestedMax: 10,
+                            ticks: { display: false }
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false }
+                    }
+                }
+            });
+        }
+
+        // --- Interactive Functions ---
+
+        function scrollToSection(id) {
+            document.getElementById(id).scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function updateFramework(key) {
+            const data = frameworkData[key];
+            
+            // Update Text
+            document.getElementById('fw-title').innerText = data.title;
+            document.getElementById('fw-desc').innerText = data.desc;
+            document.getElementById('fw-badge').innerText = data.badge;
+            document.getElementById('fw-badge').className = `inline-block px-2 py-1 text-xs font-bold rounded mb-6 ${data.badgeColor}`;
+            document.getElementById('fw-goal').innerText = data.goal;
+            document.getElementById('fw-risk').innerText = data.risk;
+            document.getElementById('fw-risk').className = `block font-medium ${data.riskColor}`;
+
+            // Update List
+            const list = document.getElementById('fw-mechanisms');
+            list.innerHTML = '';
+            data.mechanisms.forEach(mech => {
+                const li = document.createElement('li');
+                li.innerText = mech;
+                list.appendChild(li);
+            });
+
+            // Update Tabs Styling
+            ['reid', 'wz', 'peace'].forEach(k => {
+                const btn = document.getElementById(`tab-${k}`);
+                if (k === key) {
+                    btn.classList.remove('tab-inactive', 'bg-slate-50');
+                    btn.classList.add('tab-active', 'bg-white');
+                } else {
+                    btn.classList.add('tab-inactive', 'bg-slate-50');
+                    btn.classList.remove('tab-active', 'bg-white');
+                }
+            });
+
+            // Update Chart
+            frameworkRadar.data.datasets[0].data = data.chartData;
+            frameworkRadar.data.datasets[0].label = data.title;
+            
+            // Dynamic Color for Chart
+            let color = '#10b981'; // green default
+            if (key === 'reid') color = '#ef4444'; // red
+            if (key === 'wz') color = '#f59e0b'; // amber
+            
+            frameworkRadar.data.datasets[0].borderColor = color;
+            frameworkRadar.data.datasets[0].pointBackgroundColor = color;
+            frameworkRadar.data.datasets[0].backgroundColor = color + '33'; // add transparency
+            
+            frameworkRadar.update();
+        }
+
+        function loadCase(index) {
+            const data = caseData[index];
+            
+            // UI Selection State
+            for (let i = 0; i < 4; i++) {
+                const btn = document.getElementById(`case-btn-${i}`);
+                if (i === index) {
+                    btn.classList.add('border-blue-500', 'ring-1', 'ring-blue-500', 'shadow-sm');
+                    btn.classList.remove('border-slate-200');
+                } else {
+                    btn.classList.remove('border-blue-500', 'ring-1', 'ring-blue-500', 'shadow-sm');
+                    btn.classList.add('border-slate-200');
+                }
+            }
+
+            // Animate Content
+            const container = document.querySelector('#cases .fade-in');
+            container.style.opacity = '0';
+            setTimeout(() => {
+                document.getElementById('case-title').innerText = data.title;
+                document.getElementById('case-tag').innerText = data.tag;
+                document.getElementById('case-outcome').innerText = data.outcome;
+                document.getElementById('case-psych').innerText = data.psych;
+                document.getElementById('case-strategy').innerText = data.strategy;
+                document.getElementById('case-context').innerText = data.context;
+                
+                const ul = document.getElementById('case-analysis');
+                ul.innerHTML = '';
+                data.analysis.forEach(point => {
+                    const li = document.createElement('li');
+                    li.className = "flex items-start gap-2";
+                    li.innerHTML = `<span class="mt-1 w-1.5 h-1.5 rounded-full bg-blue-500 flex-shrink-0"></span><span>${point}</span>`;
+                    ul.appendChild(li);
+                });
+
+                container.style.opacity = '1';
+                container.style.transform = 'translateY(0)';
+            }, 200);
+        }
+
+        // New Interaction Logic: Tech Grid
+        function updateTech(key) {
+            const data = techData[key];
+            const panel = document.getElementById('tech-detail-panel');
+            
+            // Styling Active Card
+            ['poly', 'eye', 'avatar', 'cv'].forEach(k => {
+                const card = document.getElementById(`tech-card-${k}`);
+                if (k === key) {
+                    card.classList.add('tech-card-active');
+                } else {
+                    card.classList.remove('tech-card-active');
+                }
+            });
+
+            // Show and Update Panel
+            panel.classList.remove('hidden');
+            
+            document.getElementById('tech-detail-title').innerText = data.title + " Specification";
+            document.getElementById('tech-marker').innerText = data.marker;
+            document.getElementById('tech-error').innerText = data.error;
+            document.getElementById('tech-court').innerText = data.court;
+            document.getElementById('tech-utility').innerText = data.utility;
+        }
+
+        // New Interaction Logic: SUE Funnel
+        function updateSUE(stage) {
+            const data = sueData[stage];
+            document.getElementById('sue-step-title').innerText = data.title;
+            document.getElementById('sue-step-desc').innerHTML = data.desc;
+        }
+    </script>
+</body>
+</html>
