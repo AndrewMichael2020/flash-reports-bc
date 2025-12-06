@@ -83,7 +83,11 @@ python police_sources.py --region ALL --timeout 10
 
 ### British Columbia (BC)
 
+**RCMP:**
+- BC RCMP
+
 **Municipal Police Services:**
+- Surrey Police Service
 - Vancouver Police Department
 - West Vancouver Police Department
 - Delta Police Department
@@ -93,23 +97,20 @@ python police_sources.py --region ALL --timeout 10
 **Transit Police:**
 - Metro Vancouver Transit Police
 
-**RCMP:**
-- BC RCMP
-
 **Oversight Bodies:**
 - Independent Investigations Office of BC (IIOBC)
 - Office of the Police Complaint Commissioner (OPCC)
 
 ### Alberta (AB)
 
-**Municipal Police Services:**
-- Calgary Police Service
-- Edmonton Police Service
-- Lethbridge Police Service
-- Medicine Hat Police Service
-
 **RCMP:**
 - Alberta RCMP
+
+**Municipal Police Services:**
+- Edmonton Police Service
+- Calgary Police Service
+- Lethbridge Police Service
+- Medicine Hat Police Service
 
 **Oversight & Multi-Agency:**
 - Alberta Serious Incident Response Team (ASIRT)
@@ -122,13 +123,13 @@ python police_sources.py --region ALL --timeout 10
 
 **Municipal Police Departments:**
 - Seattle Police Department
-- Tacoma Police Department
 - Spokane Police Department
+- Tacoma Police Department
 - Yakima Police Department
 
 **County Sheriffs:**
+- Spokane County Sheriff's Office
 - King County Sheriff's Office
-- Spokane County Sheriff
 
 ## Sample Output
 
@@ -137,26 +138,53 @@ python police_sources.py --region ALL --timeout 10
 
 ## BC
 
+### RCMP
+
+- **BC RCMP** (https://rcmp.ca/en/bc)
+  - [BC RCMP News](https://rcmp.ca/en/bc/news) — HTML_PAGER (200)
+
 ### Municipal Police
+
+- **Surrey Police Service** (https://www.surreypolice.ca)
+  - [News Releases](https://www.surreypolice.ca/news-releases) — HTML_PAGER (200)
 
 - **Vancouver Police Department** (https://vpd.ca)
   - [News](https://vpd.ca/news/) — HTML_PAGER (200)
   - [News RSS](https://vpd.ca/news/rss.xml) — RSS_NATIVE (200)
 
-- **Delta Police Department** (https://deltapolice.ca)
-  - [News & Media](https://deltapolice.ca/news-media/) — HTML_PAGER (200)
+## AB
 
 ### RCMP
 
-- **BC RCMP** (https://bc.rcmp-grc.gc.ca)
-  - [BC RCMP News](https://bc.rcmp-grc.gc.ca/ViewPage.action?siteNodeId=2087) — HTML_PAGER (200)
-
-## AB
+- **Alberta RCMP** (https://rcmp.ca/en/alberta)
+  - [Alberta RCMP News](https://rcmp.ca/en/alberta/news) — HTML_PAGER (200)
 
 ### Municipal Police
 
-- **Calgary Police Service** (https://www.calgary.ca/cps.html)
-  - [Police News Releases](https://www.calgary.ca/cps/public-services/news.html) — HTML_PAGER (200)
+- **Edmonton Police Service** (https://www.edmontonpolice.ca)
+  - [Media Releases](https://www.edmontonpolice.ca/News/MediaReleases) — HTML_PAGER (200)
+
+## WA
+
+### State Police
+
+- **Washington State Patrol** (https://wsp.wa.gov)
+  - [Media Releases](https://wsp.wa.gov/media/media-releases/) — HTML_PAGER (200)
+
+### Municipal Police
+
+- **Seattle Police Department** (https://spdblotter.seattle.gov)
+  - [SPD Blotter](https://spdblotter.seattle.gov/) — HTML_PAGER (200)
+  - [SPD Blotter RSS](https://spdblotter.seattle.gov/feed/) — RSS_NATIVE (200)
+
+- **Spokane Police Department** (https://my.spokanecity.org/police/)
+  - [Police News This Year](https://my.spokanecity.org/police/news/this-year/) — HTML_PAGER (200)
+
+### Sheriff
+
+- **Spokane County Sheriff's Office** (https://www.spokanecounty.org/1316/Sheriffs-Office)
+  - [Media Release Information](https://www.spokanecounty.gov/3954/Media-Release-Information) — HTML_PAGER (200)
+  - [Press Releases (alternate)](https://www.spokanecounty.org/1622/Press-Releases) — HTML_PAGER (200)
 
 ...
 ```

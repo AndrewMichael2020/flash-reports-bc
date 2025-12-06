@@ -48,8 +48,27 @@ class Agency:
 # ============================================================================
 
 BC_SEEDS = {
+    # RCMP BC
+    "rcmp": [
+        {
+            "name": "BC RCMP",
+            "base_url": "https://rcmp.ca/en/bc",
+            "category": "RCMP",
+            "override_endpoints": [
+                {"label": "BC RCMP News", "url": "https://rcmp.ca/en/bc/news", "kind": "HTML_PAGER"},
+            ]
+        },
+    ],
     # Municipal and special police services
     "municipal": [
+        {
+            "name": "Surrey Police Service",
+            "base_url": "https://www.surreypolice.ca",
+            "category": "Municipal Police",
+            "override_endpoints": [
+                {"label": "News Releases", "url": "https://www.surreypolice.ca/news-releases", "kind": "HTML_PAGER"},
+            ]
+        },
         {
             "name": "Vancouver Police Department",
             "base_url": "https://vpd.ca",
@@ -85,17 +104,6 @@ BC_SEEDS = {
             "category": "Transit Police",
         },
     ],
-    # RCMP BC
-    "rcmp": [
-        {
-            "name": "BC RCMP",
-            "base_url": "https://bc.rcmp-grc.gc.ca",
-            "category": "RCMP",
-            "override_endpoints": [
-                {"label": "BC RCMP News", "url": "https://bc.rcmp-grc.gc.ca/ViewPage.action?siteNodeId=2087", "kind": "HTML_PAGER"},
-            ]
-        },
-    ],
     # Oversight bodies
     "oversight": [
         {
@@ -118,22 +126,33 @@ BC_SEEDS = {
 }
 
 AB_SEEDS = {
+    # RCMP Alberta
+    "rcmp": [
+        {
+            "name": "Alberta RCMP",
+            "base_url": "https://rcmp.ca/en/alberta",
+            "category": "RCMP",
+            "override_endpoints": [
+                {"label": "Alberta RCMP News", "url": "https://rcmp.ca/en/alberta/news", "kind": "HTML_PAGER"},
+            ]
+        },
+    ],
     # Municipal police services
     "municipal": [
+        {
+            "name": "Edmonton Police Service",
+            "base_url": "https://www.edmontonpolice.ca",
+            "category": "Municipal Police",
+            "override_endpoints": [
+                {"label": "Media Releases", "url": "https://www.edmontonpolice.ca/News/MediaReleases", "kind": "HTML_PAGER"},
+            ]
+        },
         {
             "name": "Calgary Police Service",
             "base_url": "https://www.calgary.ca/cps.html",
             "category": "Municipal Police",
             "override_endpoints": [
                 {"label": "Police News Releases", "url": "https://www.calgary.ca/cps/public-services/news.html", "kind": "HTML_PAGER"},
-            ]
-        },
-        {
-            "name": "Edmonton Police Service",
-            "base_url": "https://www.edmontonpolice.ca",
-            "category": "Municipal Police",
-            "override_endpoints": [
-                {"label": "News Releases", "url": "https://www.edmontonpolice.ca/News", "kind": "HTML_PAGER"},
             ]
         },
         {
@@ -145,17 +164,6 @@ AB_SEEDS = {
             "name": "Medicine Hat Police Service",
             "base_url": "https://www.mhps.ca",
             "category": "Municipal Police",
-        },
-    ],
-    # RCMP Alberta
-    "rcmp": [
-        {
-            "name": "Alberta RCMP",
-            "base_url": "https://www.rcmp-grc.gc.ca/en/alberta",
-            "category": "RCMP",
-            "override_endpoints": [
-                {"label": "Alberta RCMP News", "url": "https://www.rcmp-grc.gc.ca/en/news?wbdisable=true&field_division=281", "kind": "HTML_PAGER"},
-            ]
         },
     ],
     # Oversight and multi-agency
@@ -181,10 +189,10 @@ WA_SEEDS = {
     "state": [
         {
             "name": "Washington State Patrol",
-            "base_url": "https://www.wsp.wa.gov",
+            "base_url": "https://wsp.wa.gov",
             "category": "State Police",
             "override_endpoints": [
-                {"label": "News Releases", "url": "https://www.wsp.wa.gov/news-releases/", "kind": "HTML_PAGER"},
+                {"label": "Media Releases", "url": "https://wsp.wa.gov/media/media-releases/", "kind": "HTML_PAGER"},
             ]
         },
     ],
@@ -192,7 +200,7 @@ WA_SEEDS = {
     "municipal": [
         {
             "name": "Seattle Police Department",
-            "base_url": "https://www.seattle.gov/police",
+            "base_url": "https://spdblotter.seattle.gov",
             "category": "Municipal Police",
             "override_endpoints": [
                 {"label": "SPD Blotter", "url": "https://spdblotter.seattle.gov/", "kind": "HTML_PAGER"},
@@ -200,14 +208,20 @@ WA_SEEDS = {
             ]
         },
         {
-            "name": "Tacoma Police Department",
-            "base_url": "https://www.cityoftacoma.org/government/city_departments/police",
-            "category": "Municipal Police",
-        },
-        {
             "name": "Spokane Police Department",
             "base_url": "https://my.spokanecity.org/police/",
             "category": "Municipal Police",
+            "override_endpoints": [
+                {"label": "Police News This Year", "url": "https://my.spokanecity.org/police/news/this-year/", "kind": "HTML_PAGER"},
+            ]
+        },
+        {
+            "name": "Tacoma Police Department",
+            "base_url": "https://tacoma.gov/government/departments/police/",
+            "category": "Municipal Police",
+            "override_endpoints": [
+                {"label": "Tacoma Newsroom", "url": "https://tacoma.gov/tacoma-newsroom/news-list/", "kind": "HTML_PAGER"},
+            ]
         },
         {
             "name": "Yakima Police Department",
@@ -218,13 +232,17 @@ WA_SEEDS = {
     # High-yield county sheriffs
     "sheriff": [
         {
-            "name": "King County Sheriff's Office",
-            "base_url": "https://kingcounty.gov/depts/sheriff.aspx",
+            "name": "Spokane County Sheriff's Office",
+            "base_url": "https://www.spokanecounty.org/1316/Sheriffs-Office",
             "category": "Sheriff",
+            "override_endpoints": [
+                {"label": "Media Release Information", "url": "https://www.spokanecounty.gov/3954/Media-Release-Information", "kind": "HTML_PAGER"},
+                {"label": "Press Releases (alternate)", "url": "https://www.spokanecounty.org/1622/Press-Releases", "kind": "HTML_PAGER"},
+            ]
         },
         {
-            "name": "Spokane County Sheriff",
-            "base_url": "https://www.spokanecounty.org/1316/Sheriffs-Office",
+            "name": "King County Sheriff's Office",
+            "base_url": "https://kingcounty.gov/depts/sheriff.aspx",
             "category": "Sheriff",
         },
     ],
