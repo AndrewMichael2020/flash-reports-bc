@@ -17,29 +17,17 @@ from app.schemas import (
 )
 from app.ingestion.rcmp_parser import RCMPParser
 
+from contextlib import asynccontextmanager
+
 # Create tables on startup (for development)
 # In production, use Alembic migrations
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI(
-    title="Crimewatch Intel Backend",
-    description="Backend API for Crimewatch Intel police newsroom aggregator",
-    version="2.0.0"
-)
 
-# CORS middleware to allow frontend to call the API
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000"],  # Vite default port
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-
-@app.on_event("startup")
-async def startup_event():
-    """Initialize database with seed data on startup."""
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Lifespan event handler for startup/shutdown."""
+    # Startup: seed database
     db = next(get_db())
     
     # Check if we have any sources
@@ -61,6 +49,28 @@ async def startup_event():
         print("✓ Seeded database with Langley RCMP source")
     
     db.close()
+    
+    yield
+    
+    # Shutdown: cleanup if needed
+    pass
+
+
+app = FastAPI(
+    title="Crimewatch Intel Backend",
+    description="Backend API for Crimewatch Intel police newsroom aggregator",
+    version="2.0.0",
+    lifespan=lifespan
+)
+
+# CORS middleware to allow frontend to call the API
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "http://localhost:3000"],  # Vite default port
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.get("/")

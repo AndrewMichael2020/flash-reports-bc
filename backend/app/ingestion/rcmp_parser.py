@@ -74,7 +74,7 @@ class RCMPParser(SourceParser):
             href = link.get('href', '')
             
             # Skip non-news links
-            if not href or 'ViewPage' not in href and 'news' not in href.lower():
+            if not href or not ('ViewPage' in href or 'news' in href.lower()):
                 continue
                 
             title = link.get_text(strip=True)
@@ -87,9 +87,20 @@ class RCMPParser(SourceParser):
             elif href.startswith('/'):
                 # Extract base domain from base_url
                 from urllib.parse import urlparse
-                parsed = urlparse(link.base_uri if hasattr(link, 'base_uri') else soup.find('base')['href'] if soup.find('base') else '')
-                base = f"{parsed.scheme}://{parsed.netloc}" if parsed.netloc else ''
-                full_url = base + href if base else href
+                # Check for base tag in HTML
+                base_tag = soup.find('base')
+                if base_tag and base_tag.get('href'):
+                    parsed = urlparse(base_tag['href'])
+                else:
+                    # Fallback: use the current page's URL structure
+                    parsed = urlparse(href) if href.startswith('http') else None
+                
+                if parsed and parsed.netloc:
+                    base = f"{parsed.scheme}://{parsed.netloc}"
+                    full_url = base + href
+                else:
+                    # Ultimate fallback: skip this link
+                    full_url = href
             else:
                 full_url = href
             
