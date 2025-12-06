@@ -1,0 +1,5 @@
+{
+  "name": "Copy of Crimewatch Intel Dashboard",
+  "description": "A police intelligence dashboard that aggregates, cleans, and correlates crime reports from local agencies, penitentiaries, and transport authorities using Gemini AI.",
+  "requestFramePermissions": []
+}
