@@ -21,6 +21,7 @@ from app.ingestion.rcmp_parser import RCMPParser
 from app.ingestion.wordpress_parser import WordPressParser
 from app.ingestion.municipal_list_parser import MunicipalListParser
 from app.enrichment.gemini_enricher import GeminiEnricher
+from app.config_loader import sync_sources_to_db
 
 from contextlib import asynccontextmanager
 
@@ -32,89 +33,18 @@ Base.metadata.create_all(bind=engine)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifespan event handler for startup/shutdown."""
-    # Startup: seed database with BC sources
+    # Startup: sync database sources from config file
     db = next(get_db())
     
-    # Check if we have any sources
-    existing_sources = db.query(Source).count()
-    
-    if existing_sources == 0:
-        # Seed with BC sources
-        sources_to_add = [
-            # RCMP Detachments (using new rcmp.ca URL structure)
-            Source(
-                agency_name="Langley RCMP",
-                jurisdiction="BC",
-                region_label="Fraser Valley, BC",
-                source_type="RCMP_NEWSROOM",
-                base_url="https://rcmp.ca/en/bc/langley/news",
-                parser_id="rcmp",
-                active=True
-            ),
-            Source(
-                agency_name="Chilliwack RCMP",
-                jurisdiction="BC",
-                region_label="Fraser Valley, BC",
-                source_type="RCMP_NEWSROOM",
-                base_url="https://rcmp.ca/en/bc/chilliwack/news",
-                parser_id="rcmp",
-                active=True
-            ),
-            Source(
-                agency_name="Mission RCMP",
-                jurisdiction="BC",
-                region_label="Fraser Valley, BC",
-                source_type="RCMP_NEWSROOM",
-                base_url="https://rcmp.ca/en/bc/mission/news",
-                parser_id="rcmp",
-                active=True
-            ),
-            # Municipal Police
-            Source(
-                agency_name="Surrey Police Service",
-                jurisdiction="BC",
-                region_label="Fraser Valley, BC",
-                source_type="MUNICIPAL_PD_NEWS",
-                base_url="https://www.surreypolice.ca/news-releases",
-                parser_id="municipal_list",
-                active=True
-            ),
-            Source(
-                agency_name="Abbotsford Police Department",
-                jurisdiction="BC",
-                region_label="Fraser Valley, BC",
-                source_type="MUNICIPAL_PD_NEWS",
-                base_url="https://www.abbypd.ca/news-releases",
-                parser_id="municipal_list",
-                active=True
-            ),
-            Source(
-                agency_name="Vancouver Police Department",
-                jurisdiction="BC",
-                region_label="Metro Vancouver, BC",
-                source_type="MUNICIPAL_PD_NEWS",
-                base_url="https://vpd.ca/news/",
-                parser_id="wordpress",
-                active=True
-            ),
-            Source(
-                agency_name="Victoria Police Department",
-                jurisdiction="BC",
-                region_label="Victoria, BC",
-                source_type="MUNICIPAL_PD_NEWS",
-                base_url="https://vicpd.ca/about-us/news-releases-dashboard/",
-                parser_id="municipal_list",
-                active=True
-            ),
-        ]
-        
-        for source in sources_to_add:
-            db.add(source)
-        
-        db.commit()
-        print(f"✓ Seeded database with {len(sources_to_add)} BC sources")
-    
-    db.close()
+    try:
+        # Sync sources from config/sources.yaml to database
+        synced_count = sync_sources_to_db(db, force_update=False)
+        print(f"✓ Synced {synced_count} sources from configuration to database")
+    except Exception as e:
+        print(f"⚠ Warning: Failed to sync sources from config: {e}")
+        print("  Backend will continue with existing database sources")
+    finally:
+        db.close()
     
     yield
     

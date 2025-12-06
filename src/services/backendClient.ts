@@ -16,6 +16,17 @@ export interface IncidentsResponse {
   incidents: any[];
 }
 
+export interface GraphResponse {
+  region: string;
+  nodes: any[];
+  links: any[];
+}
+
+export interface MapResponse {
+  region: string;
+  markers: any[];
+}
+
 /**
  * Trigger feed refresh for a specific region.
  * Calls POST /api/refresh on the backend.
@@ -58,6 +69,48 @@ export async function getIncidents(
 
   if (!response.ok) {
     throw new Error(`Failed to get incidents: ${response.statusText}`);
+  }
+
+  return response.json();
+}
+
+/**
+ * Get graph data for network visualization.
+ * Calls GET /api/graph on the backend.
+ */
+export async function getGraph(region: string): Promise<GraphResponse> {
+  const params = new URLSearchParams({ region });
+
+  const response = await fetch(`${API_BASE_URL}/api/graph?${params}`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to get graph: ${response.statusText}`);
+  }
+
+  return response.json();
+}
+
+/**
+ * Get map markers for geospatial visualization.
+ * Calls GET /api/map on the backend.
+ */
+export async function getMap(region: string): Promise<MapResponse> {
+  const params = new URLSearchParams({ region });
+
+  const response = await fetch(`${API_BASE_URL}/api/map?${params}`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to get map: ${response.statusText}`);
   }
 
   return response.json();

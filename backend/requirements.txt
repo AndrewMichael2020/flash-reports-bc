@@ -17,6 +17,7 @@ selectolax==0.3.24
 pydantic==2.10.5
 python-dotenv==1.0.1
 python-dateutil==2.9.0.post0
+pyyaml==6.0.2
 
 # AI/LLM
 google-genai==0.2.2
