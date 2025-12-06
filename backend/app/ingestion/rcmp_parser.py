@@ -9,6 +9,7 @@ from bs4 import BeautifulSoup
 from datetime import datetime
 from typing import Optional, List
 import hashlib
+import logging
 from urllib.parse import urljoin, urlparse
 from app.ingestion.parser_base import SourceParser, RawArticle
 from app.ingestion.parser_utils import (
@@ -17,6 +18,8 @@ from app.ingestion.parser_utils import (
     parse_flexible_date,
     extract_main_content
 )
+
+logger = logging.getLogger(__name__)
 
 
 class RCMPParser(SourceParser):
@@ -63,7 +66,7 @@ class RCMPParser(SourceParser):
                         articles.append(article)
                 
         except Exception as e:
-            print(f"Error fetching RCMP articles from {base_url}: {e}")
+            logger.error(f"Error fetching RCMP articles from {base_url}: {e}")
             
         return articles
     
@@ -173,7 +176,7 @@ class RCMPParser(SourceParser):
             body_raw = extract_main_content(soup, selectors)
             
             if not body_raw or len(body_raw) < 50:
-                print(f"Warning: No substantial content found for {item['url']}")
+                logger.warning(f"No substantial content found for {item['url']}")
                 return None
             
             # Try to extract a better date if we didn't get one from the listing
@@ -206,5 +209,5 @@ class RCMPParser(SourceParser):
             )
             
         except Exception as e:
-            print(f"Error fetching article detail from {item['url']}: {e}")
+            logger.error(f"Error fetching article detail from {item['url']}: {e}")
             return None

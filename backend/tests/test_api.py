@@ -4,17 +4,25 @@ Tests API endpoints with a test database.
 """
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 from app.main import app
 from app.db import Base, get_db
 from app.models import Source
 
 
-# Create test database (in-memory SQLite)
-TEST_DATABASE_URL = "sqlite:///./test_crimewatch.db"
-engine = create_engine(TEST_DATABASE_URL, connect_args={"check_same_thread": False})
+# Create test database (in-memory SQLite with proper pooling)
+TEST_DATABASE_URL = "sqlite:///:memory:"
+engine = create_engine(
+    TEST_DATABASE_URL,
+    connect_args={"check_same_thread": False},
+    poolclass=StaticPool,  # Keep single connection for in-memory database
+)
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+# Create tables once at module level
+Base.metadata.create_all(bind=engine)
 
 
 def override_get_db():
@@ -33,12 +41,9 @@ app.dependency_overrides[get_db] = override_get_db
 client = TestClient(app)
 
 
-@pytest.fixture(scope="module", autouse=True)
-def setup_database():
-    """Set up test database before tests, tear down after."""
-    # Create tables
-    Base.metadata.create_all(bind=engine)
-    
+@pytest.fixture(scope="function", autouse=True)
+def setup_test_data():
+    """Seed test data before each test, clean up after."""
     # Seed test data
     db = TestingSessionLocal()
     try:
@@ -59,8 +64,13 @@ def setup_database():
     
     yield
     
-    # Clean up
-    Base.metadata.drop_all(bind=engine)
+    # Clean up - delete all data (but keep tables)
+    db = TestingSessionLocal()
+    try:
+        db.query(Source).delete()
+        db.commit()
+    finally:
+        db.close()
 
 
 class TestHealthEndpoint:

@@ -1,12 +1,14 @@
 """
 Utilities for parsers: retry logic, error handling, date parsing.
 """
-import time
-import httpx
+import asyncio
 from typing import Optional, Callable, TypeVar, Any
 from datetime import datetime
 from dateutil import parser as date_parser
 import re
+import logging
+
+logger = logging.getLogger(__name__)
 
 T = TypeVar('T')
 
@@ -30,7 +32,7 @@ class RetryConfig:
 async def retry_with_backoff(
     func: Callable[[], Any],
     config: Optional[RetryConfig] = None,
-    retryable_errors: tuple = (httpx.HTTPError, httpx.TimeoutException)
+    retryable_errors: tuple = (Exception,)
 ) -> Any:
     """
     Execute a function with exponential backoff retry logic.
@@ -64,10 +66,10 @@ async def retry_with_backoff(
                     config.max_delay
                 )
                 
-                print(f"Retry attempt {attempt + 1}/{config.max_retries} after {delay:.1f}s: {e}")
-                time.sleep(delay)
+                logger.warning(f"Retry attempt {attempt + 1}/{config.max_retries} after {delay:.1f}s: {e}")
+                await asyncio.sleep(delay)
             else:
-                print(f"All {config.max_retries} retries exhausted")
+                logger.error(f"All {config.max_retries} retries exhausted")
     
     if last_exception:
         raise last_exception

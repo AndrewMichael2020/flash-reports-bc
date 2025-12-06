@@ -19,7 +19,7 @@ const REGIONS = [
 ];
 
 function App() {
-  const [region, setRegion] = useState(REGIONS[0]); // Default to Fraser Valley for demo
+  const [region, setRegion] = useState(REGIONS[0]); // Default to first region (Fraser Valley, BC)
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [graphData, setGraphData] = useState<NetworkData>({ nodes: [], links: [] });
   const [selectedIncidentId, setSelectedIncidentId] = useState<string | null>(null);
