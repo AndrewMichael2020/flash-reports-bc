@@ -11,7 +11,7 @@ import json
 import sys
 import time
 from dataclasses import asdict, dataclass, field
-from typing import List, Literal, Optional
+from typing import List, Literal, Optional, Tuple
 from urllib.parse import urljoin, urlparse
 
 import requests
@@ -253,7 +253,7 @@ WA_SEEDS = {
 # HTTP Testing Logic
 # ============================================================================
 
-def test_endpoint(url: str, timeout: int = 5) -> tuple[bool, Optional[int]]:
+def test_endpoint(url: str, timeout: int = 5) -> Tuple[bool, Optional[int]]:
     """
     Test if an endpoint is working.
     
