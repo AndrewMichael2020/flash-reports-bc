@@ -7,15 +7,20 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from typing import Optional, List
 from datetime import datetime
+import os
 
 from app.db import get_db, engine, Base
 from app.models import Source, ArticleRaw, IncidentEnriched
 from app.schemas import (
     RefreshRequest, RefreshResponse,
     IncidentsResponse, IncidentResponse,
-    CoordinatesSchema
+    CoordinatesSchema, GraphResponse, GraphNode, GraphLink,
+    MapResponse, MapMarker
 )
 from app.ingestion.rcmp_parser import RCMPParser
+from app.ingestion.wordpress_parser import WordPressParser
+from app.ingestion.municipal_list_parser import MunicipalListParser
+from app.enrichment.gemini_enricher import GeminiEnricher
 
 from contextlib import asynccontextmanager
 
@@ -27,26 +32,87 @@ Base.metadata.create_all(bind=engine)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifespan event handler for startup/shutdown."""
-    # Startup: seed database
+    # Startup: seed database with BC sources
     db = next(get_db())
     
     # Check if we have any sources
     existing_sources = db.query(Source).count()
     
     if existing_sources == 0:
-        # Seed with one RCMP source for Fraser Valley, BC
-        langley_rcmp = Source(
-            agency_name="Langley RCMP",
-            jurisdiction="BC",
-            region_label="Fraser Valley, BC",
-            source_type="RCMP_NEWSROOM",
-            base_url="https://bc-cb.rcmp-grc.gc.ca/ViewPage.action?siteNodeId=2087&languageId=1&contentId=-1",
-            parser_id="rcmp",
-            active=True
-        )
-        db.add(langley_rcmp)
+        # Seed with BC sources
+        sources_to_add = [
+            # RCMP Detachments (using new rcmp.ca URL structure)
+            Source(
+                agency_name="Langley RCMP",
+                jurisdiction="BC",
+                region_label="Fraser Valley, BC",
+                source_type="RCMP_NEWSROOM",
+                base_url="https://rcmp.ca/en/bc/langley/news",
+                parser_id="rcmp",
+                active=True
+            ),
+            Source(
+                agency_name="Chilliwack RCMP",
+                jurisdiction="BC",
+                region_label="Fraser Valley, BC",
+                source_type="RCMP_NEWSROOM",
+                base_url="https://rcmp.ca/en/bc/chilliwack/news",
+                parser_id="rcmp",
+                active=True
+            ),
+            Source(
+                agency_name="Mission RCMP",
+                jurisdiction="BC",
+                region_label="Fraser Valley, BC",
+                source_type="RCMP_NEWSROOM",
+                base_url="https://rcmp.ca/en/bc/mission/news",
+                parser_id="rcmp",
+                active=True
+            ),
+            # Municipal Police
+            Source(
+                agency_name="Surrey Police Service",
+                jurisdiction="BC",
+                region_label="Fraser Valley, BC",
+                source_type="MUNICIPAL_PD_NEWS",
+                base_url="https://www.surreypolice.ca/news-releases",
+                parser_id="municipal_list",
+                active=True
+            ),
+            Source(
+                agency_name="Abbotsford Police Department",
+                jurisdiction="BC",
+                region_label="Fraser Valley, BC",
+                source_type="MUNICIPAL_PD_NEWS",
+                base_url="https://www.abbypd.ca/news-releases",
+                parser_id="municipal_list",
+                active=True
+            ),
+            Source(
+                agency_name="Vancouver Police Department",
+                jurisdiction="BC",
+                region_label="Metro Vancouver, BC",
+                source_type="MUNICIPAL_PD_NEWS",
+                base_url="https://vpd.ca/news/",
+                parser_id="wordpress",
+                active=True
+            ),
+            Source(
+                agency_name="Victoria Police Department",
+                jurisdiction="BC",
+                region_label="Victoria, BC",
+                source_type="MUNICIPAL_PD_NEWS",
+                base_url="https://vicpd.ca/about-us/news-releases-dashboard/",
+                parser_id="municipal_list",
+                active=True
+            ),
+        ]
+        
+        for source in sources_to_add:
+            db.add(source)
+        
         db.commit()
-        print("✓ Seeded database with Langley RCMP source")
+        print(f"✓ Seeded database with {len(sources_to_add)} BC sources")
     
     db.close()
     
@@ -92,7 +158,7 @@ async def refresh_feed(
     Trigger ingestion for a specific region.
     
     Fetches new articles from all active sources in the region,
-    creates dummy enriched incidents, and returns counts.
+    enriches with Gemini Flash, and returns counts.
     """
     region = request.region
     
@@ -107,6 +173,13 @@ async def refresh_feed(
             status_code=404,
             detail=f"No active sources found for region: {region}"
         )
+    
+    # Initialize enricher (will use dummy enrichment if GEMINI_API_KEY not set)
+    enricher = None
+    try:
+        enricher = GeminiEnricher()
+    except ValueError as e:
+        print(f"Warning: Gemini enrichment not available, using dummy enrichment: {e}")
     
     new_articles_count = 0
     
@@ -129,7 +202,7 @@ async def refresh_feed(
             since=since
         )
         
-        # Upsert articles and create dummy enrichment
+        # Upsert articles and enrich
         for article in new_articles:
             # Check if article already exists
             existing = db.query(ArticleRaw).filter(
@@ -153,21 +226,45 @@ async def refresh_feed(
             db.add(db_article)
             db.flush()  # Get the ID
             
-            # Create dummy enrichment
-            summary_tactical = article.body_raw[:200] if len(article.body_raw) > 200 else article.body_raw
+            # Enrich with Gemini or use dummy enrichment
+            if enricher:
+                enrichment = await enricher.enrich_article(
+                    title=article.title_raw,
+                    body=article.body_raw,
+                    agency=source.agency_name,
+                    region=source.region_label,
+                    published_at=article.published_at.isoformat() if article.published_at else None
+                )
+                llm_model = enricher.model_name
+                prompt_version = enricher.prompt_version
+            else:
+                # Dummy enrichment
+                summary_tactical = article.body_raw[:200] if len(article.body_raw) > 200 else article.body_raw
+                enrichment = {
+                    "severity": "MEDIUM",
+                    "summary_tactical": summary_tactical,
+                    "tags": [],
+                    "entities": [],
+                    "location_label": None,
+                    "lat": None,
+                    "lng": None,
+                    "graph_cluster_key": None
+                }
+                llm_model = "none"
+                prompt_version = "dummy_v1"
             
             enriched = IncidentEnriched(
                 id=db_article.id,
-                severity="MEDIUM",
-                summary_tactical=summary_tactical,
-                tags=[],
-                entities=[],
-                location_label=None,
-                lat=None,
-                lng=None,
-                graph_cluster_key=None,
-                llm_model="none",
-                prompt_version="dummy_v1"
+                severity=enrichment["severity"],
+                summary_tactical=enrichment["summary_tactical"],
+                tags=enrichment["tags"],
+                entities=enrichment["entities"],
+                location_label=enrichment.get("location_label"),
+                lat=enrichment.get("lat"),
+                lng=enrichment.get("lng"),
+                graph_cluster_key=enrichment.get("graph_cluster_key"),
+                llm_model=llm_model,
+                prompt_version=prompt_version
             )
             db.add(enriched)
             new_articles_count += 1
@@ -269,12 +366,146 @@ async def get_incidents(
     )
 
 
+@app.get("/api/graph", response_model=GraphResponse)
+async def get_graph(
+    region: str = Query(..., description="Region label"),
+    db: Session = Depends(get_db)
+):
+    """
+    Generate graph data for D3 network visualization.
+    
+    Returns nodes (incidents, entities, locations) and links.
+    """
+    # Query incidents for region
+    incidents_data = db.query(
+        ArticleRaw, IncidentEnriched, Source
+    ).join(
+        IncidentEnriched, ArticleRaw.id == IncidentEnriched.id
+    ).join(
+        Source, ArticleRaw.source_id == Source.id
+    ).filter(
+        Source.region_label == region
+    ).all()
+    
+    nodes = []
+    links = []
+    entity_nodes = {}
+    location_nodes = {}
+    
+    # Create incident nodes
+    for article, enriched, source in incidents_data:
+        incident_id = str(article.id)
+        
+        # Add incident node
+        nodes.append(GraphNode(
+            id=incident_id,
+            label=enriched.summary_tactical[:50] + "..." if len(enriched.summary_tactical) > 50 else enriched.summary_tactical,
+            type="incident",
+            severity=enriched.severity
+        ))
+        
+        # Process entities
+        if enriched.entities:
+            for entity in enriched.entities:
+                if isinstance(entity, dict):
+                    entity_type = entity.get("type", "person").lower()
+                    entity_name = entity.get("name", "Unknown")
+                    entity_id = f"{entity_type}_{entity_name.replace(' ', '_')}"
+                    
+                    if entity_id not in entity_nodes:
+                        entity_nodes[entity_id] = GraphNode(
+                            id=entity_id,
+                            label=entity_name,
+                            type=entity_type
+                        )
+                    
+                    # Link incident to entity
+                    links.append(GraphLink(
+                        source=incident_id,
+                        target=entity_id,
+                        type="involved"
+                    ))
+        
+        # Process location
+        if enriched.location_label:
+            location_id = f"loc_{enriched.location_label.replace(' ', '_').replace(',', '')}"
+            
+            if location_id not in location_nodes:
+                location_nodes[location_id] = GraphNode(
+                    id=location_id,
+                    label=enriched.location_label,
+                    type="location"
+                )
+            
+            links.append(GraphLink(
+                source=incident_id,
+                target=location_id,
+                type="occurred_at"
+            ))
+    
+    # Add entity and location nodes
+    nodes.extend(entity_nodes.values())
+    nodes.extend(location_nodes.values())
+    
+    return GraphResponse(
+        region=region,
+        nodes=nodes,
+        links=links
+    )
+
+
+@app.get("/api/map", response_model=MapResponse)
+async def get_map(
+    region: str = Query(..., description="Region label"),
+    db: Session = Depends(get_db)
+):
+    """
+    Get map markers for Leaflet visualization.
+    """
+    # Query incidents with coordinates
+    incidents_data = db.query(
+        ArticleRaw, IncidentEnriched, Source
+    ).join(
+        IncidentEnriched, ArticleRaw.id == IncidentEnriched.id
+    ).join(
+        Source, ArticleRaw.source_id == Source.id
+    ).filter(
+        Source.region_label == region,
+        IncidentEnriched.lat.isnot(None),
+        IncidentEnriched.lng.isnot(None)
+    ).all()
+    
+    markers = []
+    for article, enriched, source in incidents_data:
+        severity_map = {
+            "LOW": "Low",
+            "MEDIUM": "Medium",
+            "HIGH": "High",
+            "CRITICAL": "Critical"
+        }
+        
+        markers.append(MapMarker(
+            incidentId=str(article.id),
+            lat=enriched.lat,
+            lng=enriched.lng,
+            severity=severity_map.get(enriched.severity, "Medium"),
+            label=enriched.summary_tactical
+        ))
+    
+    return MapResponse(
+        region=region,
+        markers=markers
+    )
+
+
 def get_parser(parser_id: str):
     """
     Factory function to get the appropriate parser based on parser_id.
     """
     parsers = {
         "rcmp": RCMPParser(),
+        "wordpress": WordPressParser(),
+        "municipal_list": MunicipalListParser(),
     }
     
     parser = parsers.get(parser_id)
