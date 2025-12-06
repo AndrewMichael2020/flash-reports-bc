@@ -7,6 +7,9 @@ from bs4 import BeautifulSoup
 from datetime import datetime
 from typing import Optional, List
 import hashlib
+import re
+from urllib.parse import urljoin
+from dateutil import parser as date_parser
 from app.ingestion.parser_base import SourceParser, RawArticle
 
 
@@ -89,7 +92,6 @@ class WordPressParser(SourceParser):
             
             # Build full URL
             if not href.startswith('http'):
-                from urllib.parse import urljoin
                 href = urljoin(base_url, href)
             
             # Try to extract date from WordPress time element
@@ -118,9 +120,6 @@ class WordPressParser(SourceParser):
         """
         Attempt to parse a date from text.
         """
-        import re
-        from dateutil import parser as date_parser
-        
         if not text:
             return None
         
@@ -212,7 +211,6 @@ class WordPressParser(SourceParser):
             # Get text with cleanup
             text = content.get_text(separator='\n', strip=True)
             # Clean up excessive whitespace
-            import re
             text = re.sub(r'\n\s*\n', '\n\n', text)
             text = re.sub(r' +', ' ', text)
             return text
