@@ -3,27 +3,23 @@
 Standalone RCMP News Parser Test
 
 This script parses RCMP detachment news pages (e.g., https://rcmp.ca/en/bc/langley/news)
-and extracts news articles with their full text and links.
+and extracts news articles with their full text and links using Playwright browser automation.
 
 Dependencies:
-    Option 1 (Playwright - recommended for JavaScript-heavy sites):
-        - playwright (pip install playwright)
-        - beautifulsoup4 (pip install beautifulsoup4)
-        After installing: playwright install chromium
+    - playwright (pip install playwright)
+    - beautifulsoup4 (pip install beautifulsoup4)
     
-    Option 2 (Simple HTTP - faster but may miss dynamic content):
-        - httpx (pip install httpx)
-        - beautifulsoup4 (pip install beautifulsoup4)
+    After installing: playwright install chromium
 
 Usage:
-    # With Playwright (recommended):
-    python test_rcmp_news_parsing.py --method playwright
+    # Parse RCMP news from default Langley detachment:
+    python test_rcmp_news_parsing.py
     
-    # With simple HTTP (faster):
-    python test_rcmp_news_parsing.py --method httpx
+    # Parse from a different RCMP detachment:
+    python test_rcmp_news_parsing.py --url "https://rcmp.ca/en/bc/surrey/news"
     
-    # Test with mock data (for testing when site is unreachable):
-    python test_rcmp_news_parsing.py --method mock
+    # Customize output file and article limit:
+    python test_rcmp_news_parsing.py --max 5 --output my_news.json
 
 Output:
     A JSON file (rcmp_news_output.json) containing a list of news articles with:
@@ -32,16 +28,34 @@ Output:
     - published_date: Publication date (if available)
     - body: Full text content of the article
 
-Parsing Strategies:
-    1. Playwright: Full browser automation, handles JavaScript rendering
-    2. HTTPX: Simple HTTP requests, faster but may miss dynamic content
-    3. Mock: Uses sample data for testing the parser logic
+Why Playwright?
+    - RCMP websites use JavaScript rendering
+    - Playwright handles dynamic content reliably
+    - Explicitly allowed per RCMP's robots.txt
+    - Most robust solution for modern web scraping
 
-The parser tries multiple extraction strategies for robustness:
-    - Looks for <article> tags
-    - Checks for news listing patterns
-    - Falls back to comprehensive link analysis
-    - Extracts dates from multiple sources
+Parsing Strategies:
+    The parser tries multiple extraction strategies for robustness:
+    - Looks for <article> tags and news listing patterns
+    - Checks for links containing "/news/" with dates
+    - Extracts dates from <time> tags or date patterns
+    - Filters out navigation and non-article links
+    - Uses multiple fallback content selectors
+
+Example Output Format:
+    {
+      "source": "https://rcmp.ca/en/bc/langley/news",
+      "fetched_at": "2025-12-07T21:39:56.050061",
+      "article_count": 2,
+      "articles": [
+        {
+          "title": "Langley RCMP investigating pedestrian involved collision",
+          "url": "https://rcmp.ca/en/bc/langley/news/2025/11/4348078",
+          "published_date": "November 29, 2025",
+          "body": "News release\\n\\nLangley RCMP investigating..."
+        }
+      ]
+    }
 
 Author: Automated test for RCMP news parsing
 Date: 2025-12-07
@@ -56,36 +70,28 @@ from datetime import datetime
 from typing import List, Dict, Optional, Any
 from bs4 import BeautifulSoup
 
-# Optional imports based on method
 try:
-    from playwright.async_api import async_playwright, Page, Browser
+    from playwright.async_api import async_playwright, Page
     PLAYWRIGHT_AVAILABLE = True
 except ImportError:
     PLAYWRIGHT_AVAILABLE = False
-    print("Warning: Playwright not available. Use --method httpx or install playwright.")
-
-try:
-    import httpx
-    HTTPX_AVAILABLE = True
-except ImportError:
-    HTTPX_AVAILABLE = False
-    print("Warning: httpx not available. Use --method playwright or install httpx.")
+    print("ERROR: Playwright not installed.")
+    print("Install with: pip install playwright && playwright install chromium")
+    sys.exit(1)
 
 
 class RCMPNewsParser:
     """
-    Parser for RCMP news pages with multiple fetching strategies.
+    Parser for RCMP news pages using Playwright browser automation.
     """
     
-    def __init__(self, method: str = "playwright", headless: bool = True):
+    def __init__(self, headless: bool = True):
         """
         Initialize the parser.
         
         Args:
-            method: Fetching method - "playwright", "httpx", or "mock"
-            headless: Whether to run browser in headless mode (for playwright)
+            headless: Whether to run browser in headless mode
         """
-        self.method = method
         self.headless = headless
         self.base_url = "https://rcmp.ca"
         
@@ -237,7 +243,7 @@ class RCMPNewsParser:
         
     async def parse_listing_page(self, page: Page, listing_url: str) -> List[Dict[str, str]]:
         """
-        Parse the news listing page to extract article links (Playwright method).
+        Parse the news listing page to extract article links using Playwright.
         
         Args:
             page: Playwright page object
@@ -271,7 +277,7 @@ class RCMPNewsParser:
     
     async def parse_article_page(self, page: Page, article_url: str) -> Optional[str]:
         """
-        Parse an individual article page to extract full content (Playwright method).
+        Parse an individual article page to extract full content using Playwright.
         
         Args:
             page: Playwright page object
@@ -300,163 +306,9 @@ class RCMPNewsParser:
             print(f"Error parsing article page {article_url}: {e}")
             return None
     
-    async def fetch_with_httpx(self, listing_url: str, max_articles: int = 10) -> List[Dict[str, any]]:
-        """
-        Fetch news using simple HTTP requests (HTTPX method).
-        Faster but may miss JavaScript-rendered content.
-        
-        Args:
-            listing_url: URL of the news listing page
-            max_articles: Maximum number of articles to fetch
-            
-        Returns:
-            List of dictionaries with article data
-        """
-        if not HTTPX_AVAILABLE:
-            raise RuntimeError("httpx not installed. Install with: pip install httpx")
-        
-        print(f"Using HTTPX method to fetch: {listing_url}")
-        
-        results = []
-        
-        async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
-            try:
-                # Fetch listing page
-                print("Fetching listing page...")
-                response = await client.get(listing_url, headers={
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-                })
-                response.raise_for_status()
-                
-                # Parse listing
-                soup = BeautifulSoup(response.text, 'html.parser')
-                articles = self._extract_articles_from_soup(soup, listing_url)
-                articles = articles[:max_articles]
-                
-                print(f"Found {len(articles)} articles")
-                
-                # Fetch each article
-                for i, metadata in enumerate(articles, 1):
-                    print(f"\nProcessing article {i}/{len(articles)}")
-                    
-                    try:
-                        article_response = await client.get(metadata['url'], headers={
-                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-                        })
-                        article_response.raise_for_status()
-                        
-                        article_soup = BeautifulSoup(article_response.text, 'html.parser')
-                        body = self._extract_article_content(article_soup)
-                        
-                        if body:
-                            results.append({
-                                'title': metadata['title'],
-                                'url': metadata['url'],
-                                'published_date': metadata.get('date_str'),
-                                'body': body
-                            })
-                        
-                        # Be nice to server
-                        await asyncio.sleep(1)
-                        
-                    except Exception as e:
-                        print(f"Error fetching article {metadata['url']}: {e}")
-                        continue
-                
-            except Exception as e:
-                print(f"Error in HTTPX fetch: {e}")
-        
-        return results
-    
-    def get_mock_data(self) -> List[Dict[str, any]]:
-        """
-        Return mock data for testing (Mock method).
-        Useful for testing the parser logic when the real site is unreachable.
-        
-        Returns:
-            List of mock article data
-        """
-        print("Using MOCK data for testing")
-        
-        return [
-            {
-                'title': 'Langley RCMP investigating pedestrian involved collision',
-                'url': 'https://rcmp.ca/en/bc/langley/news/2025/11/4348078',
-                'published_date': 'November 29, 2025',
-                'body': '''News release
-
-Langley RCMP investigating pedestrian involved collision
-November 29, 2025 - Langley, British Columbia
-From: Langley RCMP
-
-On this page
-Content
-Contacts
-
-Content
-File Number # 2025-38981
-
-On November 28, 2025, at approximately 4:37 p.m. Langley RCMP responded to a report of a collision between a vehicle and a pedestrian in the 3700 block of 224 Street, Langley.
-
-Officers, along with first responders from the BC Ambulance Service and Township of Langley Fire Department, attended the area and located the pedestrian who had sustained serious injuries. The pedestrian was promptly transported to a local area hospital.
-
-The driver of the vehicle remained on scene and is cooperating with police. "Speed and impairment are not believed to be factors that contributed to this collision," said Sergeant Zynal Sharoom of the Langley RCMP.
-
-Anyone who was in the area at the time that witnessed this collision or has dash camera footage is asked to contact the Langley RCMP at 604-532-3200 and quote file number 2025-38981.
-
-Contacts
-Media Relations
-Langley RCMP
-Phone: 604-532-3200'''
-            },
-            {
-                'title': 'Langley RCMP seeking public assistance in locating missing person',
-                'url': 'https://rcmp.ca/en/bc/langley/news/2025/11/4348050',
-                'published_date': 'November 27, 2025',
-                'body': '''News release
-
-Langley RCMP seeking public assistance in locating missing person
-November 27, 2025 - Langley, British Columbia
-From: Langley RCMP
-
-The Langley RCMP is requesting the public's assistance in locating a missing person from Langley.
-
-John Doe, 45, was last seen on November 25, 2025, in the area of 200 Street and Fraser Highway. He is described as Caucasian, 6 feet tall, with brown hair and blue eyes.
-
-Anyone with information about John Doe's whereabouts is asked to contact the Langley RCMP at 604-532-3200.'''
-            }
-        ]
-    
     async def fetch_all_news(self, listing_url: str, max_articles: int = 10) -> List[Dict[str, any]]:
         """
-        Fetch all news articles from a listing page using the configured method.
-        
-        Args:
-            listing_url: URL of the news listing page
-            max_articles: Maximum number of articles to fetch
-            
-        Returns:
-            List of dictionaries with article data
-        """
-        if self.method == "mock":
-            return self.get_mock_data()
-        
-        elif self.method == "httpx":
-            return await self.fetch_with_httpx(listing_url, max_articles)
-        
-        elif self.method == "playwright":
-            if not PLAYWRIGHT_AVAILABLE:
-                raise RuntimeError("Playwright not installed. Install with: pip install playwright && playwright install chromium")
-            
-            return await self.fetch_with_playwright(listing_url, max_articles)
-        
-        else:
-            raise ValueError(f"Unknown method: {self.method}. Use 'playwright', 'httpx', or 'mock'")
-    
-    async def fetch_with_playwright(self, listing_url: str, max_articles: int = 10) -> List[Dict[str, any]]:
-        """
-        Fetch news using Playwright browser automation (Playwright method).
-        Most robust, handles JavaScript-rendered content.
+        Fetch all news articles from a listing page using Playwright browser automation.
         
         Args:
             listing_url: URL of the news listing page
@@ -510,8 +362,6 @@ async def main():
     """
     # Parse command line arguments
     parser = argparse.ArgumentParser(description='RCMP News Parser - Standalone Test')
-    parser.add_argument('--method', choices=['playwright', 'httpx', 'mock'], default='mock',
-                      help='Fetching method: playwright (full browser), httpx (simple HTTP), or mock (test data)')
     parser.add_argument('--url', type=str, default='https://rcmp.ca/en/bc/langley/news',
                       help='URL of the RCMP news listing page')
     parser.add_argument('--max', type=int, default=10,
@@ -525,18 +375,16 @@ async def main():
     LISTING_URL = args.url
     OUTPUT_FILE = args.output
     MAX_ARTICLES = args.max
-    METHOD = args.method
     
     print("=" * 80)
-    print("RCMP News Parser - Standalone Test")
+    print("RCMP News Parser - Standalone Test (Playwright)")
     print("=" * 80)
-    print(f"\nMethod: {METHOD}")
-    print(f"Target URL: {LISTING_URL}")
+    print(f"\nTarget URL: {LISTING_URL}")
     print(f"Max articles to fetch: {MAX_ARTICLES}")
     print(f"Output file: {OUTPUT_FILE}\n")
     
     # Create parser
-    news_parser = RCMPNewsParser(method=METHOD, headless=True)
+    news_parser = RCMPNewsParser(headless=True)
     
     # Fetch news
     try:
@@ -545,7 +393,6 @@ async def main():
         # Save to JSON
         output_data = {
             'source': LISTING_URL,
-            'method': METHOD,
             'fetched_at': datetime.now().isoformat(),
             'article_count': len(articles),
             'articles': articles
@@ -577,7 +424,7 @@ async def main():
             print(json.dumps(articles[0], indent=2, ensure_ascii=False))
             print()
         else:
-            print("\nNo articles were fetched. Try a different method or check the URL.")
+            print("\nNo articles were fetched. Check the URL and network connection.")
         
     except Exception as e:
         print(f"\nERROR: {e}")

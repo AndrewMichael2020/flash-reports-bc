@@ -2,7 +2,7 @@
 
 ## Overview
 
-This is a standalone test file (`test_rcmp_news_parsing.py`) designed to parse RCMP detachment news pages and extract news articles with their full text and links.
+This is a standalone test file (`test_rcmp_news_parsing.py`) designed to parse RCMP detachment news pages and extract news articles with their full text and links using **Playwright browser automation**.
 
 ## Purpose
 
@@ -12,24 +12,17 @@ The parser was created to troubleshoot and test web parsing for RCMP news pages 
 - Publication date
 - Complete article body text
 
+## Why Playwright?
+
+Playwright was chosen as the optimal solution because:
+- RCMP websites use JavaScript rendering
+- Handles dynamic content reliably
+- Explicitly allowed per RCMP's robots.txt
+- Most robust solution for modern web scraping
+- Works consistently across different RCMP detachment sites
+
 ## Dependencies
 
-The parser supports three different methods with different dependency requirements:
-
-### Method 1: Mock (No dependencies)
-For testing the parser logic with sample data:
-```bash
-# No additional dependencies needed
-```
-
-### Method 2: HTTPX (Lightweight)
-For simple HTTP requests (faster, but may miss JavaScript-rendered content):
-```bash
-pip install httpx beautifulsoup4
-```
-
-### Method 3: Playwright (Recommended)
-For full browser automation (handles JavaScript-rendered content):
 ```bash
 pip install playwright beautifulsoup4
 playwright install chromium
@@ -38,44 +31,35 @@ playwright install chromium
 ## Installation
 
 ```bash
-# Install dependencies based on your chosen method
-# For HTTPX:
-pip install httpx beautifulsoup4
-
-# For Playwright (recommended):
+# Install dependencies
 pip install playwright beautifulsoup4
+
+# Install Chromium browser
 playwright install chromium
 ```
 
 ## Usage
 
-### Basic Usage (Mock Data)
+### Basic Usage
 ```bash
-python test_rcmp_news_parsing.py --method mock
+python test_rcmp_news_parsing.py
 ```
 
-### With HTTPX (Fast, Simple)
+### Custom URL
 ```bash
-python test_rcmp_news_parsing.py --method httpx
+python test_rcmp_news_parsing.py --url "https://rcmp.ca/en/bc/surrey/news"
 ```
 
-### With Playwright (Robust, Handles JS)
-```bash
-python test_rcmp_news_parsing.py --method playwright
-```
-
-### Custom Parameters
+### Customize Output and Limit
 ```bash
 python test_rcmp_news_parsing.py \
-  --method playwright \
   --url "https://rcmp.ca/en/bc/langley/news" \
-  --max 10 \
+  --max 5 \
   --output my_output.json
 ```
 
 ## Command Line Arguments
 
-- `--method`: Fetching method - `playwright`, `httpx`, or `mock` (default: `mock`)
 - `--url`: URL of the RCMP news listing page (default: `https://rcmp.ca/en/bc/langley/news`)
 - `--max`: Maximum number of articles to fetch (default: `10`)
 - `--output`: Output JSON file path (default: `rcmp_news_output.json`)
@@ -87,8 +71,7 @@ The script generates a JSON file with the following structure:
 ```json
 {
   "source": "https://rcmp.ca/en/bc/langley/news",
-  "method": "mock",
-  "fetched_at": "2025-12-07T21:38:31.568350",
+  "fetched_at": "2025-12-07T21:39:56.050061",
   "article_count": 2,
   "articles": [
     {
@@ -134,9 +117,10 @@ The parser uses multiple strategies for robustness:
 
 ### For Listing Pages:
 1. Looks for `<article>`, `<li>`, or `<div>` elements with news-related classes
-2. Searches for links containing "/news/" in the href
+2. Searches for links containing "/news/" with numeric IDs in the href
 3. Extracts dates from `<time>` tags or date patterns in text
 4. Filters out navigation and non-article links
+5. Removes duplicate URLs
 
 ### For Article Pages:
 1. Tries `<article>` tag first
@@ -144,14 +128,16 @@ The parser uses multiple strategies for robustness:
 3. Searches for divs with "content" or "article" classes
 4. Ultimate fallback to `<body>` tag
 5. Cleans excessive whitespace and formatting
+6. Removes script, style, nav, header, footer elements
 
-## Method Comparison
+## Features
 
-| Method | Speed | Robustness | Use Case |
-|--------|-------|------------|----------|
-| Mock | Instant | N/A | Testing parser logic |
-| HTTPX | Fast | Good | Static HTML sites |
-| Playwright | Slower | Excellent | JavaScript-heavy sites |
+- **Optimal Solution**: Uses Playwright for best reliability
+- **Robust Parsing**: Multiple fallback strategies
+- **Clean Output**: Properly formatted JSON with all required fields
+- **Error Handling**: Graceful handling of network issues and parsing failures
+- **Rate Limiting**: 1-second delay between requests to respect server
+- **Fully Standalone**: No dependencies on existing codebase
 
 ## Robots.txt Compliance
 
@@ -160,23 +146,24 @@ The script respects robots.txt. According to RCMP's robots.txt, Playwright usage
 ## Notes
 
 - The parser includes a 1-second delay between requests to be respectful to the server
-- All methods use the same extraction logic for consistency
+- Runs in headless mode by default for efficiency
+- Waits for network idle to ensure JavaScript content is loaded
+- User agent is set to avoid bot detection
 - The script is fully self-contained and doesn't depend on the existing codebase
-- Error handling is built-in for network issues and parsing failures
 
 ## Troubleshooting
 
 ### Network Issues
 If you encounter network/DNS issues:
-1. Try the `--method mock` option to test with sample data
-2. Check your internet connection
-3. Verify the URL is accessible from your location
+1. Check your internet connection
+2. Verify the URL is accessible from your location
+3. Try a different RCMP detachment URL
 
 ### No Articles Found
 If the parser returns 0 articles:
 1. Check the URL is correct and accessible
-2. Try using Playwright method as it handles JavaScript better
-3. Inspect the HTML structure manually to verify the parsing logic
+2. Verify the page structure hasn't changed
+3. Inspect the HTML structure manually
 
 ### Playwright Installation Issues
 If Playwright fails to install:
@@ -188,7 +175,15 @@ python -m playwright install chromium
 python -m playwright install
 ```
 
+### Permission Errors
+If you get permission errors:
+```bash
+# On Linux/Mac, you may need to install system dependencies
+sudo playwright install-deps chromium
+```
+
 ## Author
 
 Created: 2025-12-07  
-Purpose: Standalone test for troubleshooting RCMP news parsing
+Purpose: Standalone test for troubleshooting RCMP news parsing  
+Method: Playwright browser automation (optimal solution)
