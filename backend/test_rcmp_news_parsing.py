@@ -53,7 +53,7 @@ import re
 import sys
 import argparse
 from datetime import datetime
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 from bs4 import BeautifulSoup
 
 # Optional imports based on method
