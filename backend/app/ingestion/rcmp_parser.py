@@ -97,6 +97,10 @@ class RCMPParser(SourceParser):
             if not text or len(text) < 15:
                 continue
             
+            # Skip non-HTTP(S) links (tel:, mailto:, javascript:, etc.)
+            if href.startswith(('tel:', 'mailto:', 'javascript:', '#')):
+                continue
+            
             # Look for news-related URLs
             if any(keyword in href.lower() for keyword in ['news', 'media-centre', 'release', 'article']):
                 potential_links.append((link, href, text))
@@ -107,6 +111,10 @@ class RCMPParser(SourceParser):
         for link, href, title in potential_links:
             # Build full URL
             full_url = urljoin(base_url, href)
+            
+            # Final validation - ensure it's a valid HTTP(S) URL
+            if not full_url.startswith(('http://', 'https://')):
+                continue
             
             # Skip if it's just the news index page
             if full_url == base_url:

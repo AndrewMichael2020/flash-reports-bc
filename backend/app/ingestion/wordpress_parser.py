@@ -90,9 +90,17 @@ class WordPressParser(SourceParser):
             if not title or not href or len(title) < 10:
                 continue
             
+            # Skip non-HTTP(S) links (tel:, mailto:, javascript:, etc.)
+            if href.startswith(('tel:', 'mailto:', 'javascript:', '#')):
+                continue
+            
             # Build full URL
             if not href.startswith('http'):
                 href = urljoin(base_url, href)
+            
+            # Final validation - ensure it's a valid HTTP(S) URL
+            if not href.startswith(('http://', 'https://')):
+                continue
             
             # Try to extract date from WordPress time element
             published_at = None
