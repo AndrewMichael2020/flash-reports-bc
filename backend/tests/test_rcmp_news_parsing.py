@@ -366,7 +366,7 @@ async def main():
                       help='URL of the RCMP news listing page')
     parser.add_argument('--max', type=int, default=10,
                       help='Maximum number of articles to fetch')
-    parser.add_argument('--output', type=str, default='rcmp_news_output.json',
+    parser.add_argument('--output', type=str, default='tests/rcmp_news_output.json',
                       help='Output JSON file path')
     
     args = parser.parse_args()

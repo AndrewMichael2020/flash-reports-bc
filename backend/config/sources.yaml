@@ -24,6 +24,7 @@ sources:
     base_url: "https://rcmp.ca/en/bc/langley/news"
     parser_id: "rcmp"
     active: true
+    use_playwright: true
     notes: "Covers Langley and surrounding areas"
 
   - agency_name: "Chilliwack RCMP"

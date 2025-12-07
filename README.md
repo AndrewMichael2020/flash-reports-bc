@@ -104,7 +104,7 @@ If you're running this in GitHub Codespaces:
    ```bash
    python3 -m venv venv
    source venv/bin/activate  # On Windows: venv\Scripts\activate
-   pip install -r requirements.txt
+   pip install -r requirements.txt -q
    ```
 
 3. **Run database migrations**:

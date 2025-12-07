@@ -344,55 +344,43 @@ This file tracks the implementation of the Backend Strategy v2 for Crimewatch In
   - Add .env.example guidance for CODESPACE_NAME and DEV_PERMISSIVE_CORS (done).
   - Consider documenting Vite proxy setup in repo README for smoother dev flow.
   - Remove permissive dev override from main branch before production deployment.
-```// filepath: /workspaces/flash-reports-bc/strategy_implementation_log.md
-# Strategy Implementation Log
 
-...existing code...
+## [2025-12-07] Dev tooling: RCMP parser & seeding helpers
 
-## [2025-12-07] Dev: CORS debugging + Codespaces tunnel verification
+RCMP Parser (app/ingestion/rcmp_parser.py)
+- The RCMP parser uses Playwright by default to fetch and parse dynamic RCMP newsroom pages.
+- A best-effort HTTP fallback is available when Playwright is disabled.
+- The parser honors `since` timestamps to avoid reprocessing older articles.
+- External IDs are computed as SHA256(url + title) to ensure idempotent article inserts.
 
-- Added temporary dev flow to diagnose CORS preflight in Codespaces:
-  - ENV toggle: DEV_PERMISSIVE_CORS to enable permissive CORS (allow_origins=['*']) for dev only.
-  - Auto-compute Codespace origin from CODESPACE_NAME + FRONTEND_PORT and include in FRONTEND_ORIGINS.
-  - Added lightweight startup logging of CORS config and a fallback OPTIONS preflight handler that logs headers.
+RCMP_TEST_JSON (ENV)
+- Set `RCMP_TEST_JSON` to point at a JSON file (e.g., `tests/rcmp_news_output.json`) to use sample data instead of performing network fetches.
+- Useful for:
+  - Deterministic test runs in CI / local development.
+  - Seeding a development DB quickly without internet or Playwright installed.
+- Example:
+  export RCMP_TEST_JSON=tests/rcmp_news_output.json
+  export ENV=dev
 
-- Local verification steps performed:
-  - Installed runtime deps and started backend with uvicorn bound to 127.0.0.1 to bypass Codespaces tunnel.
-  - Verified local health and OPTIONS preflight returned Access-Control-Allow-Origin as expected when DEV_PERMISSIVE_CORS=1.
-  - Observed external Codespaces tunnel returns 401 / WWW-Authenticate: tunnel (proxy intercepts preflight) — authenticating the tunnel in host browser required to forward requests.
+Playwright setup
+- Install Playwright and its dependencies:
+  pip install -r requirements.txt
+  pip install playwright
+  playwright install chromium
+- If Playwright is not installed and `use_playwright` is `true`, the parser raises an informative error.
+- To enable Playwright per source, set `use_playwright: true` in `config/sources.yaml`.
 
-- Outcome / notes:
-  - Backend CORS handling is functional when requests reach FastAPI.
-  - Codespaces port-forward proxy may intercept unauthenticated requests (preflight fails at proxy); two viable dev workarounds:
-    1. Run backend locally in the devcontainer and use Vite proxy or point frontend to http://127.0.0.1:8000 for same-origin testing.
-    2. Authenticate the Codespaces tunnel in the host browser (open the tunnel URL with "$BROWSER" ...) so the proxy forwards requests to FastAPI.
-  - DEV_PERMISSIVE_CORS is a temporary debug escape-hatch — removed or unset before any public deployment.
+Dev CLI for seeding DB (backend/tools/load_rcmp_json.py)
+- A dev-only CLI exists to load a RCMP JSON sample into the DB without calling the refresh endpoint:
+  - Usage (development only): python backend/tools/load_rcmp_json.py --file tests/rcmp_news_output.json --create-source --confirm
+  - Behaviour:
+    - Confirms running in dev (require `--confirm` if `ENV != dev`).
+    - Ensures `Source` exists (or creates with `--create-source`).
+    - Inserts `ArticleRaw` rows and corresponding `IncidentEnriched` rows using dummy enrichment values.
+    - Skips duplicates based on (source_id, external_id).
+- The CLI retains schema compatibility with the main ingestion flow (no schema changes).
 
-- Next steps:
-  - Add .env.example guidance for CODESPACE_NAME and DEV_PERMISSIVE_CORS (done).
-  - Consider documenting Vite proxy setup in repo README for smoother dev flow.
-  - Remove permissive dev override from main branch before production deployment.
-
-  ## [2025-12-07] Dev: CORS debugging + Codespaces tunnel verification
-
-- Added temporary dev flow to diagnose CORS preflight in Codespaces:
-  - ENV toggle: DEV_PERMISSIVE_CORS to enable permissive CORS (allow_origins=['*']) for dev only.
-  - Auto-compute Codespace origin from CODESPACE_NAME + FRONTEND_PORT and include in FRONTEND_ORIGINS.
-  - Added lightweight startup logging of CORS config and a fallback OPTIONS preflight handler that logs headers.
-
-- Local verification steps performed:
-  - Installed runtime deps and started backend with uvicorn bound to 127.0.0.1 to bypass Codespaces tunnel.
-  - Verified local health and OPTIONS preflight returned Access-Control-Allow-Origin as expected when DEV_PERMISSIVE_CORS=1.
-  - Observed external Codespaces tunnel returns 401 / WWW-Authenticate: tunnel (proxy intercepts preflight) — authenticating the tunnel in host browser required to forward requests.
-
-- Outcome / notes:
-  - Backend CORS handling is functional when requests reach FastAPI.
-  - Codespaces port-forward proxy may intercept unauthenticated requests (preflight fails at proxy); two viable dev workarounds:
-    1. Run backend locally in the devcontainer and use Vite proxy or point frontend to http://127.0.0.1:8000 for same-origin testing.
-    2. Authenticate the Codespaces tunnel in the host browser (open the tunnel URL with "$BROWSER" ...) so the proxy forwards requests to FastAPI.
-  - DEV_PERMISSIVE_CORS is a temporary debug escape-hatch — removed or unset before any public deployment.
-
-- Next steps:
-  - Add .env.example guidance for CODESPACE_NAME and DEV_PERMISSIVE_CORS (done).
-  - Consider documenting Vite proxy setup in repo README for smoother dev flow.
-  - Remove permissive dev override from main branch before production deployment.
+Security / Safety
+- CLI and sample JSON are intended for development/testing only — do not run against production DBs.
+- Both CLI and parser compute `external_id` identically to avoid duplicates.
+- No schema changes are necessary.

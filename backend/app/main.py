@@ -3,13 +3,22 @@ FastAPI application main entry point.
 Implements endpoints for the Crimewatch Intel backend.
 """
 import os
+import sys
+# Ensure repository root is on sys.path so 'backend' package imports resolve when running uvicorn from repo root / different working dir
+repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+if repo_root not in sys.path:
+    sys.path.insert(0, repo_root)
+
 import asyncio
+import re
+from urllib.parse import urlparse
 from fastapi import FastAPI, Depends, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from typing import Optional, List
 from datetime import datetime, timezone
 from starlette.responses import Response
+from fastapi.responses import JSONResponse, HTMLResponse
 
 from app.db import get_db, engine, Base
 from app.models import Source, ArticleRaw, IncidentEnriched
@@ -20,8 +29,6 @@ from app.schemas import (
     MapResponse, MapMarker
 )
 from app.ingestion.rcmp_parser import RCMPParser
-from app.ingestion.wordpress_parser import WordPressParser
-from app.ingestion.municipal_list_parser import MunicipalListParser
 from app.enrichment.gemini_enricher import GeminiEnricher
 from app.config_loader import sync_sources_to_db
 from app.logging_config import setup_logging, get_logger
@@ -201,11 +208,14 @@ async def refresh_feed(
     
     # Initialize enricher (will use dummy enrichment if GEMINI_API_KEY not set)
     enricher = None
-    try:
-        enricher = GeminiEnricher()
-        logger.info("Gemini enricher initialized")
-    except ValueError as e:
-        logger.warning(f"Gemini enrichment not available, using dummy enrichment: {e}")
+    if os.getenv("DISABLE_ENRICHMENT", "").lower() in ("1", "true", "yes"):
+        logger.info("Enrichment disabled via DISABLE_ENRICHMENT environment variable")
+    else:
+        try:
+            enricher = GeminiEnricher()
+            logger.info("Gemini enricher initialized")
+        except ValueError as e:
+            logger.warning(f"Gemini enrichment not available, using dummy enrichment: {e}")
     
     new_articles_count = 0
     
@@ -223,6 +233,10 @@ async def refresh_feed(
         
         # Get appropriate parser
         parser = get_parser(source.parser_id)
+
+        # If parser supports per-source Playwright, set it from the source config
+        if getattr(source, "use_playwright", False) and hasattr(parser, "use_playwright"):
+            parser.use_playwright = True
         
         # Fetch new articles with timeout
         try:
@@ -242,21 +256,31 @@ async def refresh_feed(
         except Exception as e:
             logger.error(f"Failed to fetch articles from {source.agency_name}: {e}")
             continue
-        
+
         # Upsert articles and enrich
         for article in new_articles:
+            # Debug: log candidate article info
+            logger.debug(f"Candidate article (source={source.agency_name}): url={article.url} external_id={article.external_id} title='{(article.title_raw or '')[:80]}' published_at={article.published_at}")
+
             # Skip non-HTTP URLs early to avoid noisy errors
             if not article.url or not (article.url.startswith("http://") or article.url.startswith("https://")):
                 logger.debug(f"Skipping non-HTTP URL for article: {article.url}")
                 continue
-            
+
+            # FILTER: Ensure URL looks like an article and is same-host as configured base_url
+            is_valid = _is_valid_article_url(source, article.url)
+            if not is_valid:
+                logger.debug(f"Skipping URL not considered a valid article for source={source.agency_name}: {article.url} (base={source.base_url})")
+                continue
+
             # Check if article already exists
             existing = db.query(ArticleRaw).filter(
                 ArticleRaw.source_id == source.id,
                 ArticleRaw.external_id == article.external_id
             ).first()
-            
+
             if existing:
+                logger.debug(f"Skipping duplicate article for source={source.agency_name} external_id={article.external_id} (existing id={existing.id})")
                 continue  # Skip duplicates
             
             # Create new article
@@ -432,14 +456,15 @@ async def get_incidents(
     )
 
 
+# Add missing graph endpoint wrapper (previously an unterminated docstring)
 @app.get("/api/graph", response_model=GraphResponse)
 async def get_graph(
-    region: str = Query(..., description="Region label"),
+    region: str = Query(..., description="Region label (e.g., 'Fraser Valley, BC')"),
     db: Session = Depends(get_db)
 ):
     """
     Generate graph data for D3 network visualization.
-    
+
     Returns nodes (incidents, entities, locations) and links.
     """
     # Query incidents for region
@@ -564,21 +589,154 @@ async def get_map(
     )
 
 
+@app.get("/api/debug/candidates")
+async def debug_candidates(
+    source_id: Optional[int] = Query(None),
+    base_url: Optional[str] = Query(None),
+    db: Session = Depends(get_db)
+):
+    """
+    DEV-only endpoint: return anchor candidate diagnostics for a source listing.
+    Pass either source_id or base_url. Disabled unless ENV == 'dev'.
+    """
+    if ENV != "dev":
+        raise HTTPException(status_code=403, detail="Debug endpoint only available in dev environment")
+
+    if not source_id and not base_url:
+        raise HTTPException(status_code=400, detail="Provide source_id or base_url")
+
+    if source_id:
+        source = db.query(Source).filter(Source.id == source_id).first()
+        if not source:
+            raise HTTPException(status_code=404, detail="Source not found")
+        target_url = source.base_url
+        parser_id = source.parser_id
+    else:
+        target_url = base_url
+        # attempt to infer parser id from sources config DB if available
+        src = db.query(Source).filter(Source.base_url == base_url).first()
+        parser_id = src.parser_id if src else "rcmp"
+
+    parser = get_parser(parser_id)
+    # If parser has the diagnostics method, call it
+    if hasattr(parser, "discover_candidate_anchors"):
+        try:
+            diagnostics = await parser.discover_candidate_anchors(target_url)
+            return JSONResponse({"base_url": target_url, "diagnostics": diagnostics})
+        except Exception as e:
+            logger.exception("Debug candidate discovery failed")
+            raise HTTPException(status_code=500, detail=str(e))
+    else:
+        raise HTTPException(status_code=400, detail="Parser does not support candidate discovery")
+
+
+@app.get("/api/debug/render", response_class=HTMLResponse)
+async def debug_render(
+    source_id: Optional[int] = Query(None),
+    base_url: Optional[str] = Query(None),
+    db: Session = Depends(get_db)
+):
+    """
+    DEV-only endpoint: return the rendered HTML for a source listing.
+    Use it to inspect the final rendered HTML (Playwright) or server-side HTML,
+    to verify anchors are present. Disabled unless ENV == 'dev'.
+    """
+    if ENV != "dev":
+        raise HTTPException(status_code=403, detail="Debug endpoint only available in dev environment")
+
+    if not source_id and not base_url:
+        raise HTTPException(status_code=400, detail="Provide source_id or base_url")
+
+    if source_id:
+        source = db.query(Source).filter(Source.id == source_id).first()
+        if not source:
+            raise HTTPException(status_code=404, detail="Source not found")
+        target_url = source.base_url
+        parser_id = source.parser_id
+    else:
+        target_url = base_url
+        src = db.query(Source).filter(Source.base_url == base_url).first()
+        parser_id = src.parser_id if src else "rcmp"
+
+    parser = get_parser(parser_id)
+    # If parser has the render helper, call it
+    if hasattr(parser, "render_listing_page"):
+        try:
+            rendered_html = await parser.render_listing_page(target_url)
+            if not rendered_html:
+                raise HTTPException(status_code=500, detail="Failed to fetch/render listing page")
+            return HTMLResponse(content=rendered_html)
+        except Exception as e:
+            logger.exception("Debug render failed")
+            raise HTTPException(status_code=500, detail=str(e))
+    else:
+        raise HTTPException(status_code=400, detail="Parser does not support rendering")
+
+
 def get_parser(parser_id: str):
     """
     Factory function to get the appropriate parser based on parser_id.
     """
-    parsers = {
-        "rcmp": RCMPParser(),
-        "wordpress": WordPressParser(),
-        "municipal_list": MunicipalListParser(),
-    }
-    
-    parser = parsers.get(parser_id)
-    if not parser:
-        raise ValueError(f"Unknown parser_id: {parser_id}")
-    
-    return parser
+    # The RCMP Playwright parser is the canonical parsing implementation we support.
+    # For now, return RCMPParser for all parser_id values and explicitly disable test JSON use.
+    if parser_id != "rcmp":
+        logger.warning(f"get_parser: requested parser_id={parser_id} — returning RCMPPlaywright parser as default")
+    # Default: use Playwright and do not load local JSON test files
+    return RCMPParser(use_playwright=True, allow_test_json=False)
+
+
+def _is_valid_article_url(source, article_url: str) -> bool:
+    """
+    Heuristic to validate that an extracted URL is actually an article we want to index.
+    - Must be a http/https URL.
+    - Must be the same netloc as the source base_url. Use endswith comparison to allow www vs non-www.
+    - Must not be the same path as the listing base_url (avoid listing pages and anchors).
+    - For RCMP sources, require '/news/' and digits (year/id) somewhere in the path.
+    - Avoid obvious non-article content paths (about, contact, cookie, privacy, terms).
+    """
+    if not article_url:
+        return False
+
+    try:
+        parsed = urlparse(article_url)
+        if parsed.scheme not in ("http", "https"):
+            return False
+    except Exception:
+        return False
+
+    base_parsed = urlparse(source.base_url)
+    # Ensure same host so we don't capture external links — allow www variations
+    if parsed.netloc and not parsed.netloc.lower().endswith(base_parsed.netloc.lower()):
+        logger.debug(f"_is_valid_article_url: host mismatch parsed={parsed.netloc} base={base_parsed.netloc}")
+        return False
+
+    # Avoid base listing URL (with or without trailing slash or fragment)
+    base_path = base_parsed.path.rstrip('/')
+    if parsed.path.rstrip('/') == base_path:
+        logger.debug(f"_is_valid_article_url: path equals base listing path: {parsed.path}")
+        return False
+
+    path_lower = parsed.path.lower()
+
+    # Skip obvious non-article pages
+    non_article_prefixes = ["/about", "/contact", "/cookie", "/cookies", "/privacy", "/terms", "/careers", "/join-us"]
+    for prefix in non_article_prefixes:
+        if path_lower.startswith(prefix):
+            logger.debug(f"_is_valid_article_url: path has non-article prefix: {prefix} -> {path_lower}")
+            return False
+
+    # Specific RCMP heuristics: articles live under '/news/' with a numeric resource id or node id
+    if getattr(source, "parser_id", "") == "rcmp":
+        if "/news/" not in path_lower and not re.search(r"/node/\d+", path_lower):
+            logger.debug(f"_is_valid_article_url: RCMP link missing /news/ or /node/ : {path_lower}")
+            return False
+        # accept /news/*digits* or node id patterns
+        if not re.search(r"/news/.*/\d+|/news/.*\d|/node/\d+", path_lower):
+            logger.debug(f"_is_valid_article_url: RCMP link does not match news/node numeric pattern: {path_lower}")
+            return False
+
+    # All checks passed — consider valid
+    return True
 
 
 if __name__ == "__main__":

@@ -27,6 +27,7 @@ class Source(Base):
     parser_id = Column(Text, nullable=False)     # which parser to use
     active = Column(Boolean, nullable=False, default=True)
     last_checked_at = Column(DateTime(timezone=True), nullable=True)
+    use_playwright = Column(Boolean, nullable=False, default=False)
 
 
 class ArticleRaw(Base):
