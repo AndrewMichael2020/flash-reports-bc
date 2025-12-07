@@ -29,6 +29,8 @@ from app.schemas import (
     MapResponse, MapMarker
 )
 from app.ingestion.rcmp_parser import RCMPParser
+from app.ingestion.wordpress_parser import WordPressParser
+from app.ingestion.municipal_list_parser import MunicipalListParser
 from app.enrichment.gemini_enricher import GeminiEnricher
 from app.config_loader import sync_sources_to_db
 from app.logging_config import setup_logging, get_logger
@@ -677,12 +679,15 @@ def get_parser(parser_id: str):
     """
     Factory function to get the appropriate parser based on parser_id.
     """
-    # The RCMP Playwright parser is the canonical parsing implementation we support.
-    # For now, return RCMPParser for all parser_id values and explicitly disable test JSON use.
-    if parser_id != "rcmp":
-        logger.warning(f"get_parser: requested parser_id={parser_id} — returning RCMPPlaywright parser as default")
-    # Default: use Playwright and do not load local JSON test files
-    return RCMPParser(use_playwright=True, allow_test_json=False)
+    if parser_id == "rcmp":
+        # Use Playwright-based RCMP parser
+        return RCMPParser(use_playwright=True, allow_test_json=False)
+    elif parser_id == "wordpress":
+        return WordPressParser()
+    elif parser_id == "municipal_list":
+        return MunicipalListParser()
+    else:
+        raise ValueError(f"Unknown parser_id: {parser_id}")
 
 
 def _is_valid_article_url(source, article_url: str) -> bool:

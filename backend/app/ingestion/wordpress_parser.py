@@ -9,8 +9,12 @@ from typing import Optional, List
 import hashlib
 import re
 from urllib.parse import urljoin
-from dateutil import parser as date_parser
+
 from app.ingestion.parser_base import SourceParser, RawArticle
+from app.ingestion.parser_utils import (
+    retry_with_backoff, RetryConfig,
+    parse_flexible_date, extract_main_content, clean_html_text
+)
 
 
 class WordPressParser(SourceParser):
@@ -32,9 +36,14 @@ class WordPressParser(SourceParser):
         
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
-                # Fetch the newsroom listing page
-                response = await client.get(base_url, follow_redirects=True)
-                response.raise_for_status()
+                # Fetch the newsroom listing page with retry
+                async def fetch_listing():
+                    response = await client.get(base_url, follow_redirects=True)
+                    response.raise_for_status()
+                    return response
+                
+                config = RetryConfig(max_retries=2, initial_delay=1.0)
+                response = await retry_with_backoff(fetch_listing, config)
                 
                 soup = BeautifulSoup(response.text, 'html.parser')
                 
@@ -46,7 +55,7 @@ class WordPressParser(SourceParser):
                     if since and item['published_at'] and item['published_at'] <= since:
                         break
                     
-                    # Fetch the full article
+                    # Fetch the full article with retry
                     article = await self._fetch_article_detail(client, item)
                     if article:
                         articles.append(article)
@@ -127,29 +136,9 @@ class WordPressParser(SourceParser):
     def _parse_date(self, text: str) -> Optional[datetime]:
         """
         Attempt to parse a date from text.
+        Uses shared date parsing utility for consistency.
         """
-        if not text:
-            return None
-        
-        try:
-            # Try ISO format first (WordPress datetime attribute)
-            if 'T' in text and ('-' in text or ':' in text):
-                return date_parser.parse(text)
-            
-            # Look for date patterns
-            date_patterns = [
-                r'\d{4}-\d{2}-\d{2}',  # YYYY-MM-DD
-                r'\w+ \d{1,2},? \d{4}',  # Month DD, YYYY
-            ]
-            
-            for pattern in date_patterns:
-                match = re.search(pattern, text)
-                if match:
-                    return date_parser.parse(match.group(0))
-        except:
-            pass
-        
-        return None
+        return parse_flexible_date(text)
     
     async def _fetch_article_detail(
         self,
@@ -158,14 +147,20 @@ class WordPressParser(SourceParser):
     ) -> Optional[RawArticle]:
         """
         Fetch the full content of an article from its detail page.
+        Uses retry logic for robustness.
         """
         try:
-            response = await client.get(item['url'], follow_redirects=True)
-            response.raise_for_status()
+            async def fetch_detail():
+                response = await client.get(item['url'], follow_redirects=True)
+                response.raise_for_status()
+                return response
+            
+            config = RetryConfig(max_retries=2, initial_delay=1.0)
+            response = await retry_with_backoff(fetch_detail, config)
             
             soup = BeautifulSoup(response.text, 'html.parser')
             
-            # Extract main content
+            # Extract main content using shared utility
             body_raw = self._extract_body(soup)
             
             if not body_raw or len(body_raw) < 50:
@@ -192,35 +187,17 @@ class WordPressParser(SourceParser):
     def _extract_body(self, soup: BeautifulSoup) -> str:
         """
         Extract the main text content from a WordPress article page.
+        Uses shared content extraction utility for consistency.
         """
-        # Remove unwanted elements
-        for unwanted in soup(['script', 'style', 'nav', 'header', 'footer', 'aside', 'form']):
-            unwanted.decompose()
-        
-        # WordPress commonly uses these content selectors
-        content = None
-        for selector in [
+        # Use shared utility with WordPress-specific selectors
+        selectors = [
             '.entry-content',
             'article .content',
             '.post-content',
             'article',
             'main',
-            '.main-content'
-        ]:
-            content = soup.select_one(selector)
-            if content:
-                break
+            '.main-content',
+            '.content'
+        ]
         
-        if not content:
-            # Fallback to body
-            content = soup.find('body')
-        
-        if content:
-            # Get text with cleanup
-            text = content.get_text(separator='\n', strip=True)
-            # Clean up excessive whitespace
-            text = re.sub(r'\n\s*\n', '\n\n', text)
-            text = re.sub(r' +', ' ', text)
-            return text
-        
-        return ""
+        return extract_main_content(soup, selectors)
