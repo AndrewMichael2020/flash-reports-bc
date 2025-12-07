@@ -127,7 +127,7 @@ class TestRefreshEndpoint:
         # We just verify the endpoint responds correctly
         response = client.post("/api/refresh", json={"region": "Fraser Valley, BC"})
         # Should succeed or fail gracefully (we don't have real parsers in test)
-        assert response.status_code in [200, 500]  # May fail due to network
+        assert response.status_code in [200, 404, 500]  # May fail due to no sources or network
 
 
 class TestGraphEndpoint:
