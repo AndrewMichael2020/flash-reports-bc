@@ -319,16 +319,16 @@ class TestParserDateHandling:
         from app.ingestion.parser_utils import parse_flexible_date
         
         test_cases = [
-            "December 1, 2024",
-            "Dec 1, 2024",
-            "2024-12-01",
-            "01/12/2024",
+            ("December 1, 2024", True),
+            ("Dec 1, 2024", True),
+            ("2024-12-01", True),
+            ("01/12/2024", True),
         ]
         
-        for date_str in test_cases:
+        for date_str, should_parse in test_cases:
             date = parse_flexible_date(date_str)
-            # Should parse without error (actual date might vary by format)
-            assert date is not None or True  # Some formats might not parse
+            if should_parse:
+                assert date is not None, f"Expected {date_str} to parse successfully"
     
     def test_invalid_date_returns_none(self):
         """Test that invalid dates return None."""
