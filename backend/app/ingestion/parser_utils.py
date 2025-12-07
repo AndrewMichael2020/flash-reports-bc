@@ -195,6 +195,9 @@ def clean_html_text(text: str) -> str:
     # Clean up tabs first (replace with spaces)
     text = text.replace('\t', ' ')
     
+    # Clean up carriage returns
+    text = text.replace('\r', '')
+    
     # Normalize whitespace
     # Replace multiple spaces with single space
     text = re.sub(r' +', ' ', text)
@@ -206,3 +209,26 @@ def clean_html_text(text: str) -> str:
     text = text.strip()
     
     return text
+
+
+def extract_wordpress_datetime(soup: BeautifulSoup) -> Optional[datetime]:
+    """
+    Extract datetime from WordPress <time> tag.
+    
+    Args:
+        soup: BeautifulSoup object
+        
+    Returns:
+        datetime object or None if not found
+    """
+    time_elem = soup.find('time')
+    if not time_elem:
+        return None
+    
+    # Try datetime attribute first
+    datetime_attr = time_elem.get('datetime')
+    if datetime_attr:
+        return parse_flexible_date(datetime_attr)
+    
+    # Fallback to text content
+    return parse_flexible_date(time_elem.get_text(strip=True))
