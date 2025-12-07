@@ -55,6 +55,44 @@ See [STRATEGY.md](STRATEGY.ms) for detailed architecture documentation.
 
 ## ⚡ Quick Start
 
+### GitHub Codespaces Setup
+
+If you're running this in GitHub Codespaces:
+
+1. **Create environment files**:
+   - Backend: Create `backend/.env` (copy from `backend/.env.example`)
+   - Frontend: Create `.env` (copy from `.env.example`)
+
+2. **Update Frontend API URL**:
+   - Open `.env` in the root directory
+   - Update `VITE_API_BASE_URL` to your Codespaces backend URL:
+     ```
+     VITE_API_BASE_URL=https://YOUR-CODESPACE-NAME-8000.app.github.dev
+     ```
+   - Replace `YOUR-CODESPACE-NAME` with your actual Codespace URL prefix
+
+3. **Start Backend** (in one terminal):
+   ```bash
+   cd backend
+   python3 -m venv venv
+   source venv/bin/activate
+   pip install -r requirements.txt
+   alembic upgrade head
+   uvicorn app.main:app --host 0.0.0.0 --port 8000
+   ```
+
+4. **Start Frontend** (in another terminal):
+   ```bash
+   npm install
+   npm run dev
+   ```
+
+5. **Access the Application**:
+   - The frontend will be available at your Codespace URL on port 3000
+   - The backend API docs will be at your Codespace URL on port 8000/docs
+
+### Local Development Setup
+
 ### Backend Setup
 
 1. **Navigate to backend directory**:
@@ -102,7 +140,7 @@ See [STRATEGY.md](STRATEGY.ms) for detailed architecture documentation.
    npm run dev
    ```
 
-   The app will be available at `http://localhost:5173`
+   The app will be available at `http://localhost:3000` (configured in vite.config.ts)
 
 ## 🧠 Usage Guide
 

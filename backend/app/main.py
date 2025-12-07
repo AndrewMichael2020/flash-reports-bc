@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from typing import Optional, List
 from datetime import datetime, timezone
 import os
+import asyncio
 
 from app.db import get_db, engine, Base
 from app.models import Source, ArticleRaw, IncidentEnriched
@@ -25,6 +26,9 @@ from app.config_loader import sync_sources_to_db
 from app.logging_config import setup_logging, get_logger
 
 from contextlib import asynccontextmanager
+
+# Configuration constants
+SCRAPER_TIMEOUT_SECONDS = 30.0  # Timeout per source when fetching articles
 
 # Set up logging
 setup_logging(level=os.getenv("LOG_LEVEL", "INFO"))
@@ -68,9 +72,21 @@ app = FastAPI(
 )
 
 # CORS middleware to allow frontend to call the API
+# Allow localhost and GitHub Codespaces domains
+allowed_origins = [
+    "http://localhost:5173",
+    "http://localhost:3000",
+    "http://127.0.0.1:5173",
+    "http://127.0.0.1:3000",
+]
+
+# Allow any GitHub Codespaces origin
+cors_allow_origin_regex = r"https://.*\.app\.github\.dev"
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000"],  # Vite default port
+    allow_origins=allowed_origins,
+    allow_origin_regex=cors_allow_origin_regex,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -141,14 +157,21 @@ async def refresh_feed(
         # Get appropriate parser
         parser = get_parser(source.parser_id)
         
-        # Fetch new articles
+        # Fetch new articles with timeout
         try:
-            new_articles = await parser.fetch_new_articles(
-                source_id=source.id,
-                base_url=source.base_url,
-                since=since
+            # Add timeout per source to prevent hanging
+            new_articles = await asyncio.wait_for(
+                parser.fetch_new_articles(
+                    source_id=source.id,
+                    base_url=source.base_url,
+                    since=since
+                ),
+                timeout=SCRAPER_TIMEOUT_SECONDS
             )
             logger.info(f"Found {len(new_articles)} new articles from {source.agency_name}")
+        except asyncio.TimeoutError:
+            logger.warning(f"Timeout fetching articles from {source.agency_name}")
+            continue
         except Exception as e:
             logger.error(f"Failed to fetch articles from {source.agency_name}: {e}")
             continue

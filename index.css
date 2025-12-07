@@ -1,0 +1,20 @@
+/* Crimewatch Intel Dashboard - Global Styles */
+
+/* These styles complement Tailwind CSS used in the application */
+/* The index.html already contains most styling, this file is for additional custom styles */
+
+/* Ensure proper box sizing */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+/* Remove default margins */
+body, h1, h2, h3, h4, p, ul, ol, li {
+  margin: 0;
+  padding: 0;
+}
+
+/* Full height app container */
+#root {
+  min-height: 100vh;
+}
