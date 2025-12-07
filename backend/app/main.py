@@ -2,13 +2,14 @@
 FastAPI application main entry point.
 Implements endpoints for the Crimewatch Intel backend.
 """
-from fastapi import FastAPI, Depends, HTTPException, Query
+import os
+import asyncio
+from fastapi import FastAPI, Depends, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from typing import Optional, List
 from datetime import datetime, timezone
-import os
-import asyncio
+from starlette.responses import Response
 
 from app.db import get_db, engine, Base
 from app.models import Source, ArticleRaw, IncidentEnriched
@@ -34,8 +35,59 @@ SCRAPER_TIMEOUT_SECONDS = 30.0  # Timeout per source when fetching articles
 setup_logging(level=os.getenv("LOG_LEVEL", "INFO"))
 logger = get_logger(__name__)
 
-# Create tables on startup (for development)
-# In production, use Alembic migrations
+# Determine environment (dev/prod) for CORS behavior
+ENV = os.getenv("ENV", "dev").lower()
+
+# Read explicit frontend origins from env (comma separated)
+frontend_origins_env = os.getenv("FRONTEND_ORIGINS", "")
+parsed_frontend_origins = [o.strip() for o in frontend_origins_env.split(",") if o.strip()]
+
+base_allowed_origins = [
+    "http://localhost:5173",
+    "http://localhost:3000",
+    "http://127.0.0.1:5173",
+    "http://127.0.0.1:3000",
+]
+
+codespace_name = os.getenv("CODESPACE_NAME")
+frontend_port = os.getenv("FRONTEND_PORT", "3000")
+port_forwarding_domain = os.getenv("GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN", "app.github.dev")
+codespace_origin = None
+
+if codespace_name:
+    codespace_origin = f"https://{codespace_name}-{frontend_port}.{port_forwarding_domain}"
+    # Add computed codespace origin to explicit parsed list so it's matched explicitly
+    parsed_frontend_origins.append(codespace_origin)
+
+# Combine allowed origins (explicit + base)
+allowed_origins = list(dict.fromkeys(base_allowed_origins + parsed_frontend_origins))
+
+
+# Dev-only permissive CORS escape hatch for quick debugging in Codespaces
+DEV_PERMISSIVE_CORS = os.getenv("DEV_PERMISSIVE_CORS", "").lower() in ("1", "true", "yes")
+
+# In dev, allow GitHub Codespaces-style hosts via regex by default (configurable)
+cors_allow_origin_regex = None
+if ENV == "dev":
+    cors_allow_origin_regex = os.getenv("CORS_ALLOW_ORIGIN_REGEX", r"https://.*\.app\.github\.dev")
+
+# If no explicit origins configured and we are in dev, fallback to allowing localhost set
+if ENV == "dev" and not (allowed_origins or cors_allow_origin_regex):
+    allowed_origins = base_allowed_origins
+
+# Apply permissive dev override if requested (temporary only)
+if ENV == "dev" and DEV_PERMISSIVE_CORS:
+    logger.warning("DEV_PERMISSIVE_CORS enabled — allowing all origins (Access-Control-Allow-Origin: *). Do NOT enable in production.")
+    allow_credentials = False
+    allowed_origins = ["*"]
+else:
+    # If any wildcard '*' in env origins, force wildcard behaviour (disable credentials)
+    if "*" in allowed_origins:
+        allow_credentials = False
+    else:
+        allow_credentials = True
+
+# Create tables on startup (for development; in prod use migrations)
 Base.metadata.create_all(bind=engine)
 
 
@@ -44,18 +96,20 @@ async def lifespan(app: FastAPI):
     """Lifespan event handler for startup/shutdown."""
     logger.info("Starting Crimewatch Intel Backend")
     
-    # Startup: sync database sources from config file
-    db = next(get_db())
-    
-    try:
-        # Sync sources from config/sources.yaml to database
-        synced_count = sync_sources_to_db(db, force_update=False)
-        logger.info(f"Synced {synced_count} sources from configuration to database")
-    except Exception as e:
-        logger.warning(f"Failed to sync sources from config: {e}")
-        logger.warning("Backend will continue with existing database sources")
-    finally:
-        db.close()
+    # NOTE: Source sync deliberately not performed at startup.
+    # Sources are synced only when the /api/refresh endpoint is invoked.
+#     # Startup: sync database sources from config file
+#     db = next(get_db())
+#     
+#     try:
+#         # Sync sources from config/sources.yaml to database
+#         synced_count = sync_sources_to_db(db, force_update=False)
+#         logger.info(f"Synced {synced_count} sources from configuration to database")
+#     except Exception as e:
+#         logger.warning(f"Failed to sync sources from config: {e}")
+#         logger.warning("Backend will continue with existing database sources")
+#     finally:
+#         db.close()
     
     yield
     
@@ -71,28 +125,31 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+# Log the CORS settings for debugging
+logger.info(f"CORS allowed_origins: {allowed_origins}")
+logger.info(f"CORS allow_origin_regex: {cors_allow_origin_regex}")
+logger.info(f"CORS allow_credentials: {allow_credentials}")
+if codespace_origin:
+    logger.info(f"Computed codespace_origin: {codespace_origin} (ensure CODESPACE_NAME is set in Codespace env for explicit matching)")
+
 # CORS middleware to allow frontend to call the API
-# Allow localhost and GitHub Codespaces domains
-allowed_origins = [
-    "http://localhost:5173",
-    "http://localhost:3000",
-    "http://127.0.0.1:5173",
-    "http://127.0.0.1:3000",
-]
-
-# Allow any GitHub Codespaces origin
-cors_allow_origin_regex = r"https://.*\.app\.github\.dev"
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
     allow_origin_regex=cors_allow_origin_regex,
-    allow_credentials=True,
+    allow_credentials=allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
     expose_headers=["*"],
     max_age=3600,  # Cache preflight responses for 1 hour
 )
+
+# Fallback preflight handler (ensures OPTIONS returns quickly and that middleware can attach headers)
+@app.options("/{full_path:path}")
+async def preflight(full_path: str, request: Request):
+    origin = request.headers.get("origin")
+    logger.debug(f"Fallback preflight handler invoked for path={full_path} origin={origin} headers={dict(request.headers)}")
+    return Response(status_code=204)
 
 
 @app.get("/")
@@ -118,6 +175,14 @@ async def refresh_feed(
     """
     region = request.region
     logger.info(f"Refresh requested for region: {region}")
+    
+    # Sync the configured sources to DB when refresh is explicitly invoked
+    try:
+        synced_count = sync_sources_to_db(db, force_update=False)
+        logger.info(f"Synced {synced_count} sources from configuration to database (on refresh)")
+    except Exception as e:
+        logger.warning(f"Failed to sync sources from config during refresh: {e}")
+        logger.warning("Continuing refresh with existing database sources")
     
     # Find all active sources for this region
     sources = db.query(Source).filter(
@@ -180,6 +245,11 @@ async def refresh_feed(
         
         # Upsert articles and enrich
         for article in new_articles:
+            # Skip non-HTTP URLs early to avoid noisy errors
+            if not article.url or not (article.url.startswith("http://") or article.url.startswith("https://")):
+                logger.debug(f"Skipping non-HTTP URL for article: {article.url}")
+                continue
+            
             # Check if article already exists
             existing = db.query(ArticleRaw).filter(
                 ArticleRaw.source_id == source.id,
@@ -263,7 +333,7 @@ async def refresh_feed(
             new_articles_count += 1
             logger.debug(f"Enriched article: {article.title_raw[:50]}")
         
-        # Update last_checked_at (fix deprecation warning)
+        # Update last_checked_at
         source.last_checked_at = datetime.now(timezone.utc)
         db.commit()
     
@@ -513,4 +583,4 @@ def get_parser(parser_id: str):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=int(os.getenv("PORT", "8000")))

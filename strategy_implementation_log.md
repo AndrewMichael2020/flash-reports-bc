@@ -320,3 +320,79 @@ This file tracks the implementation of the Backend Strategy v2 for Crimewatch In
 - Original UI styling, components, and interactions remain unchanged
 - Backend is designed to be cheap: one Gemini Flash call per article, only on new articles
 - Configuration-driven architecture makes it easy to add new sources without code changes
+
+## [2025-12-07] Dev: CORS debugging + Codespaces tunnel verification
+
+- Added temporary dev flow to diagnose CORS preflight in Codespaces:
+  - ENV toggle: DEV_PERMISSIVE_CORS to enable permissive CORS (allow_origins=['*']) for dev only.
+  - Auto-compute Codespace origin from CODESPACE_NAME + FRONTEND_PORT and include in FRONTEND_ORIGINS.
+  - Added lightweight startup logging of CORS config and a fallback OPTIONS preflight handler that logs headers.
+
+- Local verification steps performed:
+  - Installed runtime deps and started backend with uvicorn bound to 127.0.0.1 to bypass Codespaces tunnel.
+  - Verified local health and OPTIONS preflight returned Access-Control-Allow-Origin as expected when DEV_PERMISSIVE_CORS=1.
+  - Observed external Codespaces tunnel returns 401 / WWW-Authenticate: tunnel (proxy intercepts preflight) — authenticating the tunnel in host browser required to forward requests.
+
+- Outcome / notes:
+  - Backend CORS handling is functional when requests reach FastAPI.
+  - Codespaces port-forward proxy may intercept unauthenticated requests (preflight fails at proxy); two viable dev workarounds:
+    1. Run backend locally in the devcontainer and use Vite proxy or point frontend to http://127.0.0.1:8000 for same-origin testing.
+    2. Authenticate the Codespaces tunnel in the host browser (open the tunnel URL with "$BROWSER" ...) so the proxy forwards requests to FastAPI.
+  - DEV_PERMISSIVE_CORS is a temporary debug escape-hatch — removed or unset before any public deployment.
+
+- Next steps:
+  - Add .env.example guidance for CODESPACE_NAME and DEV_PERMISSIVE_CORS (done).
+  - Consider documenting Vite proxy setup in repo README for smoother dev flow.
+  - Remove permissive dev override from main branch before production deployment.
+```// filepath: /workspaces/flash-reports-bc/strategy_implementation_log.md
+# Strategy Implementation Log
+
+...existing code...
+
+## [2025-12-07] Dev: CORS debugging + Codespaces tunnel verification
+
+- Added temporary dev flow to diagnose CORS preflight in Codespaces:
+  - ENV toggle: DEV_PERMISSIVE_CORS to enable permissive CORS (allow_origins=['*']) for dev only.
+  - Auto-compute Codespace origin from CODESPACE_NAME + FRONTEND_PORT and include in FRONTEND_ORIGINS.
+  - Added lightweight startup logging of CORS config and a fallback OPTIONS preflight handler that logs headers.
+
+- Local verification steps performed:
+  - Installed runtime deps and started backend with uvicorn bound to 127.0.0.1 to bypass Codespaces tunnel.
+  - Verified local health and OPTIONS preflight returned Access-Control-Allow-Origin as expected when DEV_PERMISSIVE_CORS=1.
+  - Observed external Codespaces tunnel returns 401 / WWW-Authenticate: tunnel (proxy intercepts preflight) — authenticating the tunnel in host browser required to forward requests.
+
+- Outcome / notes:
+  - Backend CORS handling is functional when requests reach FastAPI.
+  - Codespaces port-forward proxy may intercept unauthenticated requests (preflight fails at proxy); two viable dev workarounds:
+    1. Run backend locally in the devcontainer and use Vite proxy or point frontend to http://127.0.0.1:8000 for same-origin testing.
+    2. Authenticate the Codespaces tunnel in the host browser (open the tunnel URL with "$BROWSER" ...) so the proxy forwards requests to FastAPI.
+  - DEV_PERMISSIVE_CORS is a temporary debug escape-hatch — removed or unset before any public deployment.
+
+- Next steps:
+  - Add .env.example guidance for CODESPACE_NAME and DEV_PERMISSIVE_CORS (done).
+  - Consider documenting Vite proxy setup in repo README for smoother dev flow.
+  - Remove permissive dev override from main branch before production deployment.
+
+  ## [2025-12-07] Dev: CORS debugging + Codespaces tunnel verification
+
+- Added temporary dev flow to diagnose CORS preflight in Codespaces:
+  - ENV toggle: DEV_PERMISSIVE_CORS to enable permissive CORS (allow_origins=['*']) for dev only.
+  - Auto-compute Codespace origin from CODESPACE_NAME + FRONTEND_PORT and include in FRONTEND_ORIGINS.
+  - Added lightweight startup logging of CORS config and a fallback OPTIONS preflight handler that logs headers.
+
+- Local verification steps performed:
+  - Installed runtime deps and started backend with uvicorn bound to 127.0.0.1 to bypass Codespaces tunnel.
+  - Verified local health and OPTIONS preflight returned Access-Control-Allow-Origin as expected when DEV_PERMISSIVE_CORS=1.
+  - Observed external Codespaces tunnel returns 401 / WWW-Authenticate: tunnel (proxy intercepts preflight) — authenticating the tunnel in host browser required to forward requests.
+
+- Outcome / notes:
+  - Backend CORS handling is functional when requests reach FastAPI.
+  - Codespaces port-forward proxy may intercept unauthenticated requests (preflight fails at proxy); two viable dev workarounds:
+    1. Run backend locally in the devcontainer and use Vite proxy or point frontend to http://127.0.0.1:8000 for same-origin testing.
+    2. Authenticate the Codespaces tunnel in the host browser (open the tunnel URL with "$BROWSER" ...) so the proxy forwards requests to FastAPI.
+  - DEV_PERMISSIVE_CORS is a temporary debug escape-hatch — removed or unset before any public deployment.
+
+- Next steps:
+  - Add .env.example guidance for CODESPACE_NAME and DEV_PERMISSIVE_CORS (done).
+  - Consider documenting Vite proxy setup in repo README for smoother dev flow.
+  - Remove permissive dev override from main branch before production deployment.

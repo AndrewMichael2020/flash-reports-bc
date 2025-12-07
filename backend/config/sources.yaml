@@ -32,7 +32,7 @@ sources:
     source_type: "RCMP_NEWSROOM"
     base_url: "https://rcmp.ca/en/bc/chilliwack/news"
     parser_id: "rcmp"
-    active: true
+    active: false
     notes: "Covers Chilliwack and eastern Fraser Valley"
 
   - agency_name: "Mission RCMP"
@@ -41,7 +41,7 @@ sources:
     source_type: "RCMP_NEWSROOM"
     base_url: "https://rcmp.ca/en/bc/mission/news"
     parser_id: "rcmp"
-    active: true
+    active: false
     notes: "Covers Mission district"
 
   - agency_name: "Abbotsford RCMP"
@@ -50,7 +50,7 @@ sources:
     source_type: "RCMP_NEWSROOM"
     base_url: "https://rcmp.ca/en/bc/abbotsford/news"
     parser_id: "rcmp"
-    active: true
+    active: false
     notes: "Covers Abbotsford and surrounding areas"
 
   - agency_name: "Surrey Police Service"
@@ -68,7 +68,7 @@ sources:
     source_type: "MUNICIPAL_PD_NEWS"
     base_url: "https://www.abbypd.ca/news-releases"
     parser_id: "municipal_list"
-    active: true
+    active: false
     notes: "Municipal police department for Abbotsford city"
 
   # ==========================================
@@ -81,7 +81,7 @@ sources:
     source_type: "MUNICIPAL_PD_NEWS"
     base_url: "https://vpd.ca/news/"
     parser_id: "wordpress"
-    active: true
+    active: false
     notes: "WordPress-based newsroom"
 
   - agency_name: "Burnaby RCMP"
@@ -99,7 +99,7 @@ sources:
     source_type: "RCMP_NEWSROOM"
     base_url: "https://rcmp.ca/en/bc/richmond/news"
     parser_id: "rcmp"
-    active: true
+    active: false
     notes: "Covers Richmond area"
 
   - agency_name: "Coquitlam RCMP"
@@ -108,7 +108,7 @@ sources:
     source_type: "RCMP_NEWSROOM"
     base_url: "https://rcmp.ca/en/bc/coquitlam/news"
     parser_id: "rcmp"
-    active: true
+    active: false
     notes: "Covers Tri-Cities region"
 
   # ==========================================
@@ -121,7 +121,7 @@ sources:
     source_type: "MUNICIPAL_PD_NEWS"
     base_url: "https://vicpd.ca/about-us/news-releases-dashboard/"
     parser_id: "municipal_list"
-    active: true
+    active: false
     notes: "Municipal police for Greater Victoria"
 
   - agency_name: "Saanich Police Department"
@@ -130,7 +130,7 @@ sources:
     source_type: "MUNICIPAL_PD_NEWS"
     base_url: "https://saanichpolice.ca/news-releases/"
     parser_id: "municipal_list"
-    active: true
+    active: false
     notes: "Municipal police for Saanich"
 
   - agency_name: "West Shore RCMP"
@@ -139,7 +139,7 @@ sources:
     source_type: "RCMP_NEWSROOM"
     base_url: "https://rcmp.ca/en/bc/west-shore/news"
     parser_id: "rcmp"
-    active: true
+    active: false
     notes: "Covers western Greater Victoria communities"
 
   # ==========================================
@@ -152,7 +152,7 @@ sources:
     source_type: "RCMP_NEWSROOM"
     base_url: "https://rcmp.ca/en/bc/kelowna/news"
     parser_id: "rcmp"
-    active: true
+    active: false
     notes: "Covers Kelowna and Central Okanagan"
 
   - agency_name: "Kamloops RCMP"
@@ -161,7 +161,7 @@ sources:
     source_type: "RCMP_NEWSROOM"
     base_url: "https://rcmp.ca/en/bc/kamloops-rural/news"
     parser_id: "rcmp"
-    active: true
+    active: false
     notes: "Covers Kamloops and Thompson region"
 
   # ==========================================
@@ -207,7 +207,7 @@ sources:
     jurisdiction: "WA"
     region_label: "Washington State"
     source_type: "STATE_POLICE"
-    base_url: "https://wsp.wa.gov/news-releases/"
+    base_url: "https://wsp.wa.gov/media-releases/"
     parser_id: "municipal_list"
     active: false
     notes: "State-level patrol - parser may need customization"
