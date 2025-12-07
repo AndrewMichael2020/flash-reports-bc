@@ -13,6 +13,7 @@ import json
 import re
 import hashlib
 import asyncio
+import logging
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from urllib.parse import urljoin
@@ -24,6 +25,9 @@ from app.ingestion.parser_utils import (
     retry_with_backoff, RetryConfig,
     parse_flexible_date, extract_main_content, clean_html_text
 )
+
+# Set up logger
+logger = logging.getLogger(__name__)
 
 # Optional Playwright import; we'll fail gracefully and raise helpful error if used without playwright installed
 try:
@@ -67,7 +71,7 @@ class RCMPParser(SourceParser):
                 return self._to_raw_article_list(items, since)
             except Exception as e:
                 # Continue to playwright if sample file not parsable
-                print(f"RCMPParser: failed loading sample JSON '{RCMP_TEST_JSON}': {e}")
+                logger.warning(f"Failed loading sample JSON '{RCMP_TEST_JSON}': {e}")
 
         # If Playwright is not available, raise early to help debug misconfigured environments
         if self.use_playwright and not PLAYWRIGHT_AVAILABLE:
@@ -166,7 +170,7 @@ class RCMPParser(SourceParser):
                         await asyncio.sleep(0.5)
                     except Exception as e:
                         # Skip articles that fail after retries
-                        print(f"RCMPParser: Failed to fetch article {meta['url']}: {e}")
+                        logger.warning(f"Failed to fetch article {meta['url']}: {e}")
                         continue
             finally:
                 await browser.close()

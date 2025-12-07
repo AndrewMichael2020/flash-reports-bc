@@ -3,6 +3,7 @@ WordPress Parser.
 Handles WordPress-based police newsroom sites (e.g., VPD).
 """
 import httpx
+import logging
 from bs4 import BeautifulSoup
 from datetime import datetime
 from typing import Optional, List
@@ -15,6 +16,9 @@ from app.ingestion.parser_utils import (
     retry_with_backoff, RetryConfig,
     parse_flexible_date, extract_main_content, clean_html_text
 )
+
+# Set up logger
+logger = logging.getLogger(__name__)
 
 
 class WordPressParser(SourceParser):
@@ -61,7 +65,7 @@ class WordPressParser(SourceParser):
                         articles.append(article)
                  
         except Exception as e:
-            print(f"Error fetching WordPress articles: {e}")
+            logger.error(f"Error fetching WordPress articles: {e}")
             
         return articles
     
@@ -181,7 +185,7 @@ class WordPressParser(SourceParser):
             )
             
         except Exception as e:
-            print(f"Error fetching article detail from {item['url']}: {e}")
+            logger.warning(f"Error fetching article detail from {item['url']}: {e}")
             return None
     
     def _extract_body(self, soup: BeautifulSoup) -> str:

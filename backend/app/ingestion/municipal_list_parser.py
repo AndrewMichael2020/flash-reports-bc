@@ -3,6 +3,7 @@ Municipal List Parser.
 Handles municipal police newsroom sites with list-style layouts (e.g., Surrey PD, Abbotsford PD).
 """
 import httpx
+import logging
 from bs4 import BeautifulSoup
 from datetime import datetime
 from typing import Optional, List
@@ -15,6 +16,9 @@ from app.ingestion.parser_utils import (
     retry_with_backoff, RetryConfig,
     parse_flexible_date, extract_main_content, clean_html_text
 )
+
+# Set up logger
+logger = logging.getLogger(__name__)
 
 
 class MunicipalListParser(SourceParser):
@@ -60,7 +64,7 @@ class MunicipalListParser(SourceParser):
                         articles.append(article)
                  
         except Exception as e:
-            print(f"Error fetching municipal articles: {e}")
+            logger.error(f"Error fetching municipal articles: {e}")
             
         return articles
     
@@ -200,7 +204,7 @@ class MunicipalListParser(SourceParser):
             )
             
         except Exception as e:
-            print(f"Error fetching article detail from {item['url']}: {e}")
+            logger.warning(f"Error fetching article detail from {item['url']}: {e}")
             return None
     
     def _extract_body(self, soup: BeautifulSoup) -> str:

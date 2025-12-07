@@ -61,10 +61,6 @@ async def retry_with_backoff(
             await asyncio.sleep(delay)
             delay = min(delay * config.backoff_factor, config.max_delay)
     
-    # Should never reach here, but just in case
-    if last_exception:
-        raise last_exception
-    
 
 def parse_flexible_date(date_str: str) -> Optional[datetime]:
     """
@@ -118,7 +114,8 @@ def parse_flexible_date(date_str: str) -> Optional[datetime]:
 def extract_main_content(
     soup: BeautifulSoup,
     selectors: Optional[List[str]] = None,
-    remove_tags: Optional[List[str]] = None
+    remove_tags: Optional[List[str]] = None,
+    min_content_length: int = 100
 ) -> str:
     """
     Extract main content from HTML using selectors.
@@ -127,6 +124,7 @@ def extract_main_content(
         soup: BeautifulSoup object
         selectors: List of CSS selectors to try (in order)
         remove_tags: List of tag names to remove before extraction
+        min_content_length: Minimum content length to consider valid
         
     Returns:
         Extracted text content
@@ -166,7 +164,7 @@ def extract_main_content(
             
             if element:
                 text = element.get_text(separator='\n', strip=True)
-                if text and len(text) > 100:  # Minimum content length
+                if text and len(text) > min_content_length:
                     return clean_html_text(text)
         except Exception:
             continue
