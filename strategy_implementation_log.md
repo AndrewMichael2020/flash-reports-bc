@@ -201,16 +201,115 @@ This file tracks the implementation of the Backend Strategy v2 for Crimewatch In
 ✅ GET /api/graph returns graph data structure  
 ✅ GET /api/map returns map markers structure  
 ✅ POST /api/refresh handles multiple sources and falls back gracefully without API key  
-✅ All 7 BC sources seeded into database on startup  
+✅ All 19 BC sources configured via YAML file
 ✅ Parser factory supports all three parser types  
 
 ### Notes
 
 - Parsers tested in local environment but require live internet access to actually fetch articles
 - Gemini enrichment requires `GEMINI_API_KEY` environment variable; otherwise uses dummy enrichment
-- Frontend integration not yet implemented (UI still uses GeminiService.fetchRecentIncidents())
-- RCMP parser may need refinement for different detachment layouts when tested with live data
-- Consider adding retry logic and better error handling for network failures in production
+- RCMP parser may need further refinement for different detachment layouts when tested with live data
+
+---
+
+## [2025-12-06] Phase C – Full Integration & Testing
+
+### What was done
+
+- **Frontend integration complete**
+  - Replaced direct Gemini calls with backend API calls
+  - Updated `App.tsx` to use `backendClient.ts` for all data operations
+  - Modified REFRESH FEED button to call `POST /api/refresh` then fetch incidents, graph, and map data
+  - Updated regions list to match available backend sources
+  - Enhanced loading states and error handling
+
+- **Configuration management**
+  - Created `backend/config/sources.yaml` with 19 BC police newsroom sources
+  - Implemented `config_loader.py` for automatic database synchronization
+  - Added comprehensive documentation in `backend/config/README.md`
+  - Moved all hardcoded sources from main.py to configuration file
+  - Sources automatically sync from YAML to database on startup
+
+- **Parser improvements**
+  - Enhanced RCMP parser with retry logic and exponential backoff
+  - Implemented `parser_utils.py` with:
+    - Async retry logic with exponential backoff
+    - Flexible date parsing supporting 10+ formats
+    - Priority-based content extraction
+    - HTML text cleaning utilities
+  - Added structured logging throughout parsers
+  - Fixed async/await issues (changed time.sleep to asyncio.sleep)
+  - Better error handling for network failures
+
+- **Testing infrastructure**
+  - Created comprehensive test suite (27 tests, all passing)
+  - Unit tests for parser utilities:
+    - Date parsing (7 tests)
+    - HTML text cleaning (3 tests)
+    - Content extraction (4 tests)
+    - WordPress datetime extraction (2 tests)
+  - Integration tests for API endpoints:
+    - Health check endpoint (1 test)
+    - Incidents endpoint (3 tests)
+    - Refresh endpoint (3 tests)
+    - Graph endpoint (2 tests)
+    - Map endpoint (2 tests)
+  - Fixed test database setup with StaticPool for in-memory SQLite
+
+- **Best practices & improvements**
+  - Added structured logging configuration (`logging_config.py`)
+  - Replaced print statements with proper logger calls throughout backend
+  - Fixed deprecation warnings (datetime.utcnow → datetime.now(timezone.utc))
+  - Enhanced error handling with try-except blocks and proper logging
+  - Added comprehensive error messages for debugging
+  - Updated README with current implementation status
+
+- **Documentation**
+  - Created `backend/config/README.md` for source configuration
+  - Updated main README with Phase B completion status
+  - Documented all 19 configured sources
+  - Added usage examples for adding new sources
+
+### Verification
+
+✅ All 27 backend tests passing  
+✅ Frontend builds successfully (no errors)  
+✅ Backend imports without errors  
+✅ Code review completed (7 issues addressed)  
+✅ Security scan completed (0 vulnerabilities found)  
+✅ Structured logging operational  
+✅ Retry logic with exponential backoff working  
+✅ Config-driven source management functional  
+
+### Configured Sources (19 total)
+
+**Fraser Valley, BC (6 sources):**
+- Langley RCMP, Chilliwack RCMP, Mission RCMP, Abbotsford RCMP
+- Surrey Police Service, Abbotsford Police Department
+
+**Metro Vancouver, BC (4 sources):**
+- Vancouver Police Department, Burnaby RCMP, Richmond RCMP, Coquitlam RCMP
+
+**Victoria, BC (3 sources):**
+- Victoria Police Department, Saanich Police Department, West Shore RCMP
+
+**BC Interior (2 sources):**
+- Kelowna RCMP, Kamloops RCMP
+
+**Inactive (4 sources - awaiting parser customization):**
+- Calgary Police Service, Edmonton Police Service, Seattle Police Department, Washington State Patrol
+
+### Next Steps (for production deployment)
+
+- [ ] Test with live data and actual GEMINI_API_KEY
+- [ ] Monitor and refine parsers based on real-world newsroom layouts
+- [ ] Add health checks and monitoring for production
+- [ ] Set up PostgreSQL for production (currently using SQLite for dev)
+- [ ] Configure proper CORS for production frontend URL
+- [ ] Add rate limiting for API endpoints
+- [ ] Implement caching for frequently accessed data
+- [ ] Create deployment documentation
+- [ ] Test Alberta and Washington sources, customize parsers as needed
 
 ---
 
@@ -220,3 +319,4 @@ This file tracks the implementation of the Backend Strategy v2 for Crimewatch In
 - Frontend and backend are completely decoupled; can be developed and deployed independently
 - Original UI styling, components, and interactions remain unchanged
 - Backend is designed to be cheap: one Gemini Flash call per article, only on new articles
+- Configuration-driven architecture makes it easy to add new sources without code changes

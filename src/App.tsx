@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Incident, NetworkData, Severity } from './types';
-import * as GeminiService from './services/geminiService';
+import * as BackendClient from './services/backendClient';
 import NetworkGraph from './components/NetworkGraph';
 import IncidentFeed from './components/IncidentFeed';
 import DetailPanel from './components/DetailPanel';
@@ -9,17 +9,17 @@ import FilterControls from './components/FilterControls';
 import IncidentMap from './components/IncidentMap';
 
 const REGIONS = [
-  "Los Angeles, CA",
-  "Chicago, IL",
   "Fraser Valley, BC",
-  "Miami, FL",
-  "New York, NY",
-  "Baltimore, MD",
-  "Mexico City, MX"
+  "Metro Vancouver, BC",
+  "Victoria, BC",
+  "BC Interior",
+  "Calgary, AB",
+  "Edmonton, AB",
+  "Seattle Metro, WA"
 ];
 
 function App() {
-  const [region, setRegion] = useState(REGIONS[2]); // Default to Fraser Valley for demo
+  const [region, setRegion] = useState(REGIONS[0]); // Default to first region (Fraser Valley, BC)
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [graphData, setGraphData] = useState<NetworkData>({ nodes: [], links: [] });
   const [selectedIncidentId, setSelectedIncidentId] = useState<string | null>(null);
@@ -31,32 +31,35 @@ function App() {
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
-    setStatus(`Scanning police feeds in ${region}...`);
+    setStatus(`Refreshing ${region} feeds...`);
     setIncidents([]);
     setGraphData({ nodes: [], links: [] });
     setActiveFilters([]); 
 
     try {
-      // 1. Fetch
-      const fetchedIncidents = await GeminiService.fetchRecentIncidents(region);
-      setIncidents(fetchedIncidents);
-
-      // 2. Analyze (Parallel)
-      setStatus(`Analyzing ${fetchedIncidents.length} reports for entity extraction...`);
-      const analyzedIncidents = await Promise.all(
-        fetchedIncidents.map(inc => GeminiService.analyzeIncident(inc))
-      );
-      setIncidents(analyzedIncidents);
-
-      // 3. Correlate
-      setStatus("Building link analysis graph...");
-      const network = await GeminiService.generateCorrelationGraph(analyzedIncidents);
-      setGraphData(network);
+      // 1. Trigger refresh (scrape new articles)
+      const refreshResult = await BackendClient.refreshFeed(region);
       
-      setStatus(`Monitoring complete. ${analyzedIncidents.length} events logged.`);
+      if (refreshResult.new_articles > 0) {
+        setStatus(`Found ${refreshResult.new_articles} new articles. Loading incidents...`);
+      } else {
+        setStatus(`No new articles. Loading ${refreshResult.total_incidents} existing incidents...`);
+      }
+
+      // 2. Fetch incidents, graph, and map data in parallel
+      const [incidentsData, graphResult, mapResult] = await Promise.all([
+        BackendClient.getIncidents(region),
+        BackendClient.getGraph(region),
+        BackendClient.getMap(region)
+      ]);
+
+      setIncidents(incidentsData.incidents);
+      setGraphData({ nodes: graphResult.nodes, links: graphResult.links });
+      
+      setStatus(`Monitoring complete. ${incidentsData.incidents.length} events logged.`);
     } catch (error) {
-      console.error(error);
-      setStatus("System Error: Failed to acquire feed.");
+      console.error('Failed to load data from backend:', error);
+      setStatus(`System Error: ${error instanceof Error ? error.message : 'Failed to acquire feed'}`);
     } finally {
       setIsLoading(false);
     }

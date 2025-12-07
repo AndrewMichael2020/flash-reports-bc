@@ -1,0 +1,213 @@
+# Crimewatch Intel - Police Newsroom Source Configuration
+# 
+# This file defines all police newsroom sources that the backend monitors.
+# Each source entry specifies the agency, jurisdiction, parser to use, and metadata.
+#
+# Configuration Structure:
+# - agency_name: Official name of the police agency
+# - jurisdiction: Province/State code (BC, AB, WA, etc.)
+# - region_label: Human-readable region for UI filtering
+# - source_type: Category (RCMP_NEWSROOM, MUNICIPAL_PD_NEWS, etc.)
+# - base_url: Root URL of the newsroom
+# - parser_id: Which parser to use (rcmp, wordpress, municipal_list)
+# - active: Whether to actively monitor this source
+
+sources:
+  # ==========================================
+  # BRITISH COLUMBIA - Fraser Valley Region
+  # ==========================================
+  
+  - agency_name: "Langley RCMP"
+    jurisdiction: "BC"
+    region_label: "Fraser Valley, BC"
+    source_type: "RCMP_NEWSROOM"
+    base_url: "https://rcmp.ca/en/bc/langley/news"
+    parser_id: "rcmp"
+    active: true
+    notes: "Covers Langley and surrounding areas"
+
+  - agency_name: "Chilliwack RCMP"
+    jurisdiction: "BC"
+    region_label: "Fraser Valley, BC"
+    source_type: "RCMP_NEWSROOM"
+    base_url: "https://rcmp.ca/en/bc/chilliwack/news"
+    parser_id: "rcmp"
+    active: true
+    notes: "Covers Chilliwack and eastern Fraser Valley"
+
+  - agency_name: "Mission RCMP"
+    jurisdiction: "BC"
+    region_label: "Fraser Valley, BC"
+    source_type: "RCMP_NEWSROOM"
+    base_url: "https://rcmp.ca/en/bc/mission/news"
+    parser_id: "rcmp"
+    active: true
+    notes: "Covers Mission district"
+
+  - agency_name: "Abbotsford RCMP"
+    jurisdiction: "BC"
+    region_label: "Fraser Valley, BC"
+    source_type: "RCMP_NEWSROOM"
+    base_url: "https://rcmp.ca/en/bc/abbotsford/news"
+    parser_id: "rcmp"
+    active: true
+    notes: "Covers Abbotsford and surrounding areas"
+
+  - agency_name: "Surrey Police Service"
+    jurisdiction: "BC"
+    region_label: "Fraser Valley, BC"
+    source_type: "MUNICIPAL_PD_NEWS"
+    base_url: "https://www.surreypolice.ca/news-releases"
+    parser_id: "municipal_list"
+    active: true
+    notes: "Municipal police service for Surrey"
+
+  - agency_name: "Abbotsford Police Department"
+    jurisdiction: "BC"
+    region_label: "Fraser Valley, BC"
+    source_type: "MUNICIPAL_PD_NEWS"
+    base_url: "https://www.abbypd.ca/news-releases"
+    parser_id: "municipal_list"
+    active: true
+    notes: "Municipal police department for Abbotsford city"
+
+  # ==========================================
+  # BRITISH COLUMBIA - Metro Vancouver
+  # ==========================================
+
+  - agency_name: "Vancouver Police Department"
+    jurisdiction: "BC"
+    region_label: "Metro Vancouver, BC"
+    source_type: "MUNICIPAL_PD_NEWS"
+    base_url: "https://vpd.ca/news/"
+    parser_id: "wordpress"
+    active: true
+    notes: "WordPress-based newsroom"
+
+  - agency_name: "Burnaby RCMP"
+    jurisdiction: "BC"
+    region_label: "Metro Vancouver, BC"
+    source_type: "RCMP_NEWSROOM"
+    base_url: "https://rcmp.ca/en/bc/burnaby/news"
+    parser_id: "rcmp"
+    active: true
+    notes: "Covers Burnaby and nearby areas"
+
+  - agency_name: "Richmond RCMP"
+    jurisdiction: "BC"
+    region_label: "Metro Vancouver, BC"
+    source_type: "RCMP_NEWSROOM"
+    base_url: "https://rcmp.ca/en/bc/richmond/news"
+    parser_id: "rcmp"
+    active: true
+    notes: "Covers Richmond area"
+
+  - agency_name: "Coquitlam RCMP"
+    jurisdiction: "BC"
+    region_label: "Metro Vancouver, BC"
+    source_type: "RCMP_NEWSROOM"
+    base_url: "https://rcmp.ca/en/bc/coquitlam/news"
+    parser_id: "rcmp"
+    active: true
+    notes: "Covers Tri-Cities region"
+
+  # ==========================================
+  # BRITISH COLUMBIA - Victoria & Island
+  # ==========================================
+
+  - agency_name: "Victoria Police Department"
+    jurisdiction: "BC"
+    region_label: "Victoria, BC"
+    source_type: "MUNICIPAL_PD_NEWS"
+    base_url: "https://vicpd.ca/about-us/news-releases-dashboard/"
+    parser_id: "municipal_list"
+    active: true
+    notes: "Municipal police for Greater Victoria"
+
+  - agency_name: "Saanich Police Department"
+    jurisdiction: "BC"
+    region_label: "Victoria, BC"
+    source_type: "MUNICIPAL_PD_NEWS"
+    base_url: "https://saanichpolice.ca/news-releases/"
+    parser_id: "municipal_list"
+    active: true
+    notes: "Municipal police for Saanich"
+
+  - agency_name: "West Shore RCMP"
+    jurisdiction: "BC"
+    region_label: "Victoria, BC"
+    source_type: "RCMP_NEWSROOM"
+    base_url: "https://rcmp.ca/en/bc/west-shore/news"
+    parser_id: "rcmp"
+    active: true
+    notes: "Covers western Greater Victoria communities"
+
+  # ==========================================
+  # BRITISH COLUMBIA - Interior
+  # ==========================================
+
+  - agency_name: "Kelowna RCMP"
+    jurisdiction: "BC"
+    region_label: "BC Interior"
+    source_type: "RCMP_NEWSROOM"
+    base_url: "https://rcmp.ca/en/bc/kelowna/news"
+    parser_id: "rcmp"
+    active: true
+    notes: "Covers Kelowna and Central Okanagan"
+
+  - agency_name: "Kamloops RCMP"
+    jurisdiction: "BC"
+    region_label: "BC Interior"
+    source_type: "RCMP_NEWSROOM"
+    base_url: "https://rcmp.ca/en/bc/kamloops-rural/news"
+    parser_id: "rcmp"
+    active: true
+    notes: "Covers Kamloops and Thompson region"
+
+  # ==========================================
+  # ALBERTA - Calgary Region
+  # ==========================================
+
+  - agency_name: "Calgary Police Service"
+    jurisdiction: "AB"
+    region_label: "Calgary, AB"
+    source_type: "MUNICIPAL_PD_NEWS"
+    base_url: "https://www.calgary.ca/cps/news.html"
+    parser_id: "municipal_list"
+    active: false
+    notes: "Municipal police - parser may need customization"
+
+  # ==========================================
+  # ALBERTA - Edmonton Region
+  # ==========================================
+
+  - agency_name: "Edmonton Police Service"
+    jurisdiction: "AB"
+    region_label: "Edmonton, AB"
+    source_type: "MUNICIPAL_PD_NEWS"
+    base_url: "https://www.edmontonpolice.ca/News"
+    parser_id: "municipal_list"
+    active: false
+    notes: "Municipal police - parser may need customization"
+
+  # ==========================================
+  # WASHINGTON STATE - Seattle Metro
+  # ==========================================
+
+  - agency_name: "Seattle Police Department"
+    jurisdiction: "WA"
+    region_label: "Seattle Metro, WA"
+    source_type: "MUNICIPAL_PD_NEWS"
+    base_url: "https://spdblotter.seattle.gov/"
+    parser_id: "wordpress"
+    active: false
+    notes: "WordPress-based blotter - parser may need customization"
+
+  - agency_name: "Washington State Patrol"
+    jurisdiction: "WA"
+    region_label: "Washington State"
+    source_type: "STATE_POLICE"
+    base_url: "https://wsp.wa.gov/news-releases/"
+    parser_id: "municipal_list"
+    active: false
+    notes: "State-level patrol - parser may need customization"

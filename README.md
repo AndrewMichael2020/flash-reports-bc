@@ -173,10 +173,17 @@ flash-reports-bc/
 
 ### Adding New Data Sources
 
-See [backend/README.md](backend/README.md) for instructions on:
-- Creating new parsers for different newsroom formats
-- Adding sources to the database
-- Configuring enrichment prompts
+1. **Edit the configuration file**: `backend/config/sources.yaml`
+   - Add a new source entry with agency info, URL, and parser type
+   - See [backend/config/README.md](backend/config/README.md) for details
+
+2. **Choose or create a parser**:
+   - **rcmp**: For RCMP detachment newsrooms
+   - **wordpress**: For WordPress-based sites
+   - **municipal_list**: For card/list-based municipal sites
+   - Custom parsers go in `backend/app/ingestion/`
+
+3. **Restart backend**: Sources automatically sync from YAML to database on startup
 
 ### Database Schema
 
@@ -185,26 +192,29 @@ Three core tables:
 - **articles_raw**: Scraped articles (title, body, URL, timestamp)
 - **incidents_enriched**: AI-enriched intelligence (severity, entities, location, tags)
 
-See [STRATEGY.md](STRATEGY.ms) for complete schema documentation.
+See [STRATEGY.md](STRATEGY.md) for complete schema documentation.
 
 ## 📝 Implementation Status
 
 ✅ **Phase A - Backend Bootstrap** (Complete)
 - FastAPI backend with SQLite/PostgreSQL
 - Database schema and Alembic migrations
-- RCMP newsroom parser
-- POST /api/refresh and GET /api/incidents endpoints
-- Frontend backend client wrapper
+- RCMP, WordPress, and Municipal parsers
+- Configuration-driven source management
+- Structured logging and error handling
 
-🚧 **Phase B - Full Integration** (Next)
-- Wire frontend to use backend data exclusively
-- Replace dummy enrichment with real Gemini Flash calls
-- Add more BC sources (Surrey PD, VPD, Abbotsford PD)
-- Implement /api/graph and /api/map endpoints
+✅ **Phase B - Full Integration** (Complete)
+- Frontend wired to backend API (no more direct Gemini calls)
+- POST /api/refresh, GET /api/incidents, GET /api/graph, GET /api/map endpoints
+- Retry logic with exponential backoff
+- Comprehensive test suite (27 tests passing)
+- Improved date parsing and content extraction
+- Real Gemini Flash enrichment integrated
+- 19 active BC sources configured
 
 📋 **Phase C - Multi-Region Expansion** (Planned)
-- Alberta sources (Calgary, Edmonton)
-- Washington State sources (WSP, King County)
+- Alberta sources (Calgary, Edmonton) - needs parser customization
+- Washington State sources (WSP, King County) - needs parser customization
 - Enhanced correlation algorithms
 
 See [strategy_implementation_log.md](strategy_implementation_log.md) for detailed progress tracking.

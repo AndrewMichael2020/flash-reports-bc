@@ -6,7 +6,7 @@ from fastapi import FastAPI, Depends, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from typing import Optional, List
-from datetime import datetime
+from datetime import datetime, timezone
 import os
 
 from app.db import get_db, engine, Base
@@ -21,8 +21,14 @@ from app.ingestion.rcmp_parser import RCMPParser
 from app.ingestion.wordpress_parser import WordPressParser
 from app.ingestion.municipal_list_parser import MunicipalListParser
 from app.enrichment.gemini_enricher import GeminiEnricher
+from app.config_loader import sync_sources_to_db
+from app.logging_config import setup_logging, get_logger
 
 from contextlib import asynccontextmanager
+
+# Set up logging
+setup_logging(level=os.getenv("LOG_LEVEL", "INFO"))
+logger = get_logger(__name__)
 
 # Create tables on startup (for development)
 # In production, use Alembic migrations
@@ -32,92 +38,24 @@ Base.metadata.create_all(bind=engine)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifespan event handler for startup/shutdown."""
-    # Startup: seed database with BC sources
+    logger.info("Starting Crimewatch Intel Backend")
+    
+    # Startup: sync database sources from config file
     db = next(get_db())
     
-    # Check if we have any sources
-    existing_sources = db.query(Source).count()
-    
-    if existing_sources == 0:
-        # Seed with BC sources
-        sources_to_add = [
-            # RCMP Detachments (using new rcmp.ca URL structure)
-            Source(
-                agency_name="Langley RCMP",
-                jurisdiction="BC",
-                region_label="Fraser Valley, BC",
-                source_type="RCMP_NEWSROOM",
-                base_url="https://rcmp.ca/en/bc/langley/news",
-                parser_id="rcmp",
-                active=True
-            ),
-            Source(
-                agency_name="Chilliwack RCMP",
-                jurisdiction="BC",
-                region_label="Fraser Valley, BC",
-                source_type="RCMP_NEWSROOM",
-                base_url="https://rcmp.ca/en/bc/chilliwack/news",
-                parser_id="rcmp",
-                active=True
-            ),
-            Source(
-                agency_name="Mission RCMP",
-                jurisdiction="BC",
-                region_label="Fraser Valley, BC",
-                source_type="RCMP_NEWSROOM",
-                base_url="https://rcmp.ca/en/bc/mission/news",
-                parser_id="rcmp",
-                active=True
-            ),
-            # Municipal Police
-            Source(
-                agency_name="Surrey Police Service",
-                jurisdiction="BC",
-                region_label="Fraser Valley, BC",
-                source_type="MUNICIPAL_PD_NEWS",
-                base_url="https://www.surreypolice.ca/news-releases",
-                parser_id="municipal_list",
-                active=True
-            ),
-            Source(
-                agency_name="Abbotsford Police Department",
-                jurisdiction="BC",
-                region_label="Fraser Valley, BC",
-                source_type="MUNICIPAL_PD_NEWS",
-                base_url="https://www.abbypd.ca/news-releases",
-                parser_id="municipal_list",
-                active=True
-            ),
-            Source(
-                agency_name="Vancouver Police Department",
-                jurisdiction="BC",
-                region_label="Metro Vancouver, BC",
-                source_type="MUNICIPAL_PD_NEWS",
-                base_url="https://vpd.ca/news/",
-                parser_id="wordpress",
-                active=True
-            ),
-            Source(
-                agency_name="Victoria Police Department",
-                jurisdiction="BC",
-                region_label="Victoria, BC",
-                source_type="MUNICIPAL_PD_NEWS",
-                base_url="https://vicpd.ca/about-us/news-releases-dashboard/",
-                parser_id="municipal_list",
-                active=True
-            ),
-        ]
-        
-        for source in sources_to_add:
-            db.add(source)
-        
-        db.commit()
-        print(f"✓ Seeded database with {len(sources_to_add)} BC sources")
-    
-    db.close()
+    try:
+        # Sync sources from config/sources.yaml to database
+        synced_count = sync_sources_to_db(db, force_update=False)
+        logger.info(f"Synced {synced_count} sources from configuration to database")
+    except Exception as e:
+        logger.warning(f"Failed to sync sources from config: {e}")
+        logger.warning("Backend will continue with existing database sources")
+    finally:
+        db.close()
     
     yield
     
+    logger.info("Shutting down Crimewatch Intel Backend")
     # Shutdown: cleanup if needed
     pass
 
@@ -161,6 +99,7 @@ async def refresh_feed(
     enriches with Gemini Flash, and returns counts.
     """
     region = request.region
+    logger.info(f"Refresh requested for region: {region}")
     
     # Find all active sources for this region
     sources = db.query(Source).filter(
@@ -169,38 +108,50 @@ async def refresh_feed(
     ).all()
     
     if not sources:
+        logger.warning(f"No active sources found for region: {region}")
         raise HTTPException(
             status_code=404,
             detail=f"No active sources found for region: {region}"
         )
     
+    logger.info(f"Found {len(sources)} active sources for {region}")
+    
     # Initialize enricher (will use dummy enrichment if GEMINI_API_KEY not set)
     enricher = None
     try:
         enricher = GeminiEnricher()
+        logger.info("Gemini enricher initialized")
     except ValueError as e:
-        print(f"Warning: Gemini enrichment not available, using dummy enrichment: {e}")
+        logger.warning(f"Gemini enrichment not available, using dummy enrichment: {e}")
     
     new_articles_count = 0
     
     # Process each source
     for source in sources:
+        logger.info(f"Processing source: {source.agency_name}")
+        
         # Get the most recent article date for this source
         latest_article = db.query(ArticleRaw).filter(
             ArticleRaw.source_id == source.id
         ).order_by(ArticleRaw.published_at.desc()).first()
         
         since = latest_article.published_at if latest_article else None
+        logger.debug(f"Fetching articles since: {since}")
         
         # Get appropriate parser
         parser = get_parser(source.parser_id)
         
         # Fetch new articles
-        new_articles = await parser.fetch_new_articles(
-            source_id=source.id,
-            base_url=source.base_url,
-            since=since
-        )
+        try:
+            new_articles = await parser.fetch_new_articles(
+                source_id=source.id,
+                base_url=source.base_url,
+                since=since
+            )
+            logger.info(f"Found {len(new_articles)} new articles from {source.agency_name}")
+        except Exception as e:
+            logger.error(f"Failed to fetch articles from {source.agency_name}: {e}")
+            continue
         
         # Upsert articles and enrich
         for article in new_articles:
@@ -228,15 +179,32 @@ async def refresh_feed(
             
             # Enrich with Gemini or use dummy enrichment
             if enricher:
-                enrichment = await enricher.enrich_article(
-                    title=article.title_raw,
-                    body=article.body_raw,
-                    agency=source.agency_name,
-                    region=source.region_label,
-                    published_at=article.published_at.isoformat() if article.published_at else None
-                )
-                llm_model = enricher.model_name
-                prompt_version = enricher.prompt_version
+                try:
+                    enrichment = await enricher.enrich_article(
+                        title=article.title_raw,
+                        body=article.body_raw,
+                        agency=source.agency_name,
+                        region=source.region_label,
+                        published_at=article.published_at.isoformat() if article.published_at else None
+                    )
+                    llm_model = enricher.model_name
+                    prompt_version = enricher.prompt_version
+                except Exception as e:
+                    logger.error(f"Enrichment failed for article {article.title_raw[:50]}: {e}")
+                    # Fall back to dummy enrichment
+                    summary_tactical = article.body_raw[:200] if len(article.body_raw) > 200 else article.body_raw
+                    enrichment = {
+                        "severity": "MEDIUM",
+                        "summary_tactical": summary_tactical,
+                        "tags": [],
+                        "entities": [],
+                        "location_label": None,
+                        "lat": None,
+                        "lng": None,
+                        "graph_cluster_key": None
+                    }
+                    llm_model = "none"
+                    prompt_version = "dummy_v1"
             else:
                 # Dummy enrichment
                 summary_tactical = article.body_raw[:200] if len(article.body_raw) > 200 else article.body_raw
@@ -268,9 +236,10 @@ async def refresh_feed(
             )
             db.add(enriched)
             new_articles_count += 1
+            logger.debug(f"Enriched article: {article.title_raw[:50]}")
         
-        # Update last_checked_at
-        source.last_checked_at = datetime.utcnow()
+        # Update last_checked_at (fix deprecation warning)
+        source.last_checked_at = datetime.now(timezone.utc)
         db.commit()
     
     # Count total incidents in this region
@@ -281,6 +250,8 @@ async def refresh_feed(
     ).filter(
         Source.region_label == region
     ).count()
+    
+    logger.info(f"Refresh complete: {new_articles_count} new articles, {total_incidents} total incidents for {region}")
     
     return RefreshResponse(
         region=region,

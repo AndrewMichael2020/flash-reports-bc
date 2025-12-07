@@ -2,18 +2,31 @@
 RCMP Newsroom Parser.
 Handles parsing of RCMP detachment newsroom pages.
 
-Example URL: https://bc-cb.rcmp-grc.gc.ca/ViewPage.action?siteNodeId=2087&languageId=1&contentId=-1
+Example URL: https://rcmp.ca/en/bc/langley/news
 """
 import httpx
 from bs4 import BeautifulSoup
 from datetime import datetime
 from typing import Optional, List
 import hashlib
+import logging
+from urllib.parse import urljoin, urlparse
 from app.ingestion.parser_base import SourceParser, RawArticle
+from app.ingestion.parser_utils import (
+    retry_with_backoff, 
+    RetryConfig,
+    parse_flexible_date,
+    extract_main_content
+)
+
+logger = logging.getLogger(__name__)
 
 
 class RCMPParser(SourceParser):
     """Parser for RCMP detachment newsrooms."""
+    
+    def __init__(self):
+        self.retry_config = RetryConfig(max_retries=3, initial_delay=1.0)
     
     async def fetch_new_articles(
         self,
@@ -24,92 +37,96 @@ class RCMPParser(SourceParser):
         """
         Fetch new articles from an RCMP newsroom.
         
-        For Phase A, implements a basic parser for Langley RCMP.
-        The RCMP newsroom typically has a list of news releases with titles,
-        dates, and links to detail pages.
+        Supports the new rcmp.ca/en/{province}/{detachment}/news URL structure.
         """
         articles = []
         
         try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                # Fetch the newsroom listing page
-                response = await client.get(base_url, follow_redirects=True)
-                response.raise_for_status()
+            async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+                # Fetch the newsroom listing page with retry
+                async def fetch_listing():
+                    response = await client.get(base_url)
+                    response.raise_for_status()
+                    return response
                 
+                response = await retry_with_backoff(fetch_listing, self.retry_config)
                 soup = BeautifulSoup(response.text, 'html.parser')
                 
-                # Find news release items
-                # RCMP newsrooms typically use a consistent structure
-                # This is a simplified parser; real implementation may need adjustment
-                news_items = self._extract_news_items(soup)
+                # Extract news items from the listing
+                news_items = self._extract_news_items(soup, base_url)
                 
                 for item in news_items:
                     # Check if we should stop based on date
                     if since and item['published_at'] and item['published_at'] <= since:
                         break
                     
-                    # Fetch the full article
+                    # Fetch the full article with retry
                     article = await self._fetch_article_detail(client, item)
                     if article:
                         articles.append(article)
                 
         except Exception as e:
-            print(f"Error fetching RCMP articles: {e}")
+            logger.error(f"Error fetching RCMP articles from {base_url}: {e}")
             
         return articles
     
-    def _extract_news_items(self, soup: BeautifulSoup) -> List[dict]:
+    def _extract_news_items(self, soup: BeautifulSoup, base_url: str) -> List[dict]:
         """
         Extract news items from the RCMP newsroom listing page.
-        Returns list of dicts with url, title, published_at.
+        
+        RCMP pages typically have news releases in a list or card format.
+        This implementation looks for common patterns across different RCMP detachments.
         """
         items = []
         
-        # RCMP sites often use specific classes or structures
-        # This is a generic implementation that looks for common patterns
+        # Parse base URL for constructing absolute URLs
+        parsed_base = urlparse(base_url)
+        base_domain = f"{parsed_base.scheme}://{parsed_base.netloc}"
         
-        # Look for news release links
-        # Common patterns: div.newsItem, article, or links in a list
+        # Look for news article links
+        # RCMP sites use various structures; try multiple approaches
+        
+        # Approach 1: Look for links containing "news" or article-like hrefs
+        potential_links = []
+        
         for link in soup.find_all('a', href=True):
             href = link.get('href', '')
+            text = link.get_text(strip=True)
             
-            # Skip non-news links
-            if not href or not ('ViewPage' in href or 'news' in href.lower()):
-                continue
-                
-            title = link.get_text(strip=True)
-            if not title or len(title) < 10:
+            # Skip if no meaningful text
+            if not text or len(text) < 15:
                 continue
             
+            # Look for news-related URLs
+            if any(keyword in href.lower() for keyword in ['news', 'media-centre', 'release', 'article']):
+                potential_links.append((link, href, text))
+            # Also check if the link parent looks like a news item container
+            elif link.find_parent(['article', 'li']) and len(text) > 20:
+                potential_links.append((link, href, text))
+        
+        for link, href, title in potential_links:
             # Build full URL
-            if href.startswith('http'):
-                full_url = href
-            elif href.startswith('/'):
-                # Extract base domain from base_url
-                from urllib.parse import urlparse
-                # Check for base tag in HTML
-                base_tag = soup.find('base')
-                if base_tag and base_tag.get('href'):
-                    parsed = urlparse(base_tag['href'])
-                else:
-                    # Fallback: use the current page's URL structure
-                    parsed = urlparse(href) if href.startswith('http') else None
-                
-                if parsed and parsed.netloc:
-                    base = f"{parsed.scheme}://{parsed.netloc}"
-                    full_url = base + href
-                else:
-                    # Ultimate fallback: skip this link
-                    full_url = href
-            else:
-                full_url = href
+            full_url = urljoin(base_url, href)
             
-            # Try to extract date (RCMP often includes dates in the text or metadata)
-            date_elem = link.find_parent()
+            # Skip if it's just the news index page
+            if full_url == base_url:
+                continue
+            
+            # Try to extract date from surrounding context
             published_at = None
-            if date_elem:
-                date_text = date_elem.get_text()
-                published_at = self._parse_date(date_text)
+            
+            # Look in parent elements for date
+            parent = link.find_parent(['article', 'li', 'div'])
+            if parent:
+                parent_text = parent.get_text()
+                published_at = parse_flexible_date(parent_text)
+            
+            # Also check for time elements
+            if not published_at:
+                time_elem = link.find_parent().find('time') if link.find_parent() else None
+                if time_elem:
+                    time_text = time_elem.get('datetime') or time_elem.get_text()
+                    published_at = parse_flexible_date(time_text)
             
             items.append({
                 'url': full_url,
@@ -117,32 +134,16 @@ class RCMPParser(SourceParser):
                 'published_at': published_at
             })
         
-        # Limit to most recent items for demo
-        return items[:10]
-    
-    def _parse_date(self, text: str) -> Optional[datetime]:
-        """
-        Attempt to parse a date from text.
-        RCMP dates are often in format like "January 15, 2024" or "2024-01-15"
-        """
-        import re
-        from dateutil import parser as date_parser
+        # Remove duplicates by URL
+        seen_urls = set()
+        unique_items = []
+        for item in items:
+            if item['url'] not in seen_urls:
+                seen_urls.add(item['url'])
+                unique_items.append(item)
         
-        # Look for date patterns
-        date_patterns = [
-            r'\d{4}-\d{2}-\d{2}',  # YYYY-MM-DD
-            r'\w+ \d{1,2},? \d{4}',  # Month DD, YYYY
-        ]
-        
-        for pattern in date_patterns:
-            match = re.search(pattern, text)
-            if match:
-                try:
-                    return date_parser.parse(match.group(0))
-                except:
-                    pass
-        
-        return None
+        # Limit to most recent items
+        return unique_items[:15]
     
     async def _fetch_article_detail(
         self,
@@ -150,20 +151,48 @@ class RCMPParser(SourceParser):
         item: dict
     ) -> Optional[RawArticle]:
         """
-        Fetch the full content of an article from its detail page.
+        Fetch the full content of an article from its detail page with retry logic.
         """
         try:
-            response = await client.get(item['url'], follow_redirects=True)
-            response.raise_for_status()
+            async def fetch_detail():
+                response = await client.get(item['url'])
+                response.raise_for_status()
+                return response
             
+            response = await retry_with_backoff(fetch_detail, self.retry_config)
             soup = BeautifulSoup(response.text, 'html.parser')
             
-            # Extract main content
-            # RCMP pages typically have content in specific divs or sections
-            body_raw = self._extract_body(soup)
+            # Extract main content using prioritized selectors
+            selectors = [
+                'article',
+                'main',
+                '.article-content',
+                '.content',
+                '#content',
+                '.news-content',
+                '[role="main"]'
+            ]
+            
+            body_raw = extract_main_content(soup, selectors)
             
             if not body_raw or len(body_raw) < 50:
+                logger.warning(f"No substantial content found for {item['url']}")
                 return None
+            
+            # Try to extract a better date if we didn't get one from the listing
+            if not item.get('published_at'):
+                # Look for time element in article
+                time_elem = soup.find('time')
+                if time_elem:
+                    datetime_attr = time_elem.get('datetime')
+                    if datetime_attr:
+                        item['published_at'] = parse_flexible_date(datetime_attr)
+                    else:
+                        item['published_at'] = parse_flexible_date(time_elem.get_text())
+                
+                # Fallback: search entire text
+                if not item['published_at']:
+                    item['published_at'] = parse_flexible_date(body_raw[:500])
             
             # Generate external_id as hash of URL + title
             external_id = hashlib.sha256(
@@ -180,37 +209,5 @@ class RCMPParser(SourceParser):
             )
             
         except Exception as e:
-            print(f"Error fetching article detail from {item['url']}: {e}")
+            logger.error(f"Error fetching article detail from {item['url']}: {e}")
             return None
-    
-    def _extract_body(self, soup: BeautifulSoup) -> str:
-        """
-        Extract the main text content from an article page.
-        """
-        # Remove script and style elements
-        for script in soup(['script', 'style', 'nav', 'header', 'footer']):
-            script.decompose()
-        
-        # Look for main content areas
-        # Try common content containers
-        content = None
-        
-        for selector in ['article', 'main', '.content', '#content', '.news-content']:
-            content = soup.select_one(selector)
-            if content:
-                break
-        
-        if not content:
-            # Fallback to body
-            content = soup.find('body')
-        
-        if content:
-            # Get text with some cleanup
-            text = content.get_text(separator='\n', strip=True)
-            # Clean up excessive whitespace
-            import re
-            text = re.sub(r'\n\s*\n', '\n\n', text)
-            text = re.sub(r' +', ' ', text)
-            return text
-        
-        return ""
