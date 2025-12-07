@@ -27,6 +27,9 @@ from app.logging_config import setup_logging, get_logger
 
 from contextlib import asynccontextmanager
 
+# Configuration constants
+SCRAPER_TIMEOUT_SECONDS = 30.0  # Timeout per source when fetching articles
+
 # Set up logging
 setup_logging(level=os.getenv("LOG_LEVEL", "INFO"))
 logger = get_logger(__name__)
@@ -156,14 +159,14 @@ async def refresh_feed(
         
         # Fetch new articles with timeout
         try:
-            # Add 30 second timeout per source to prevent hanging
+            # Add timeout per source to prevent hanging
             new_articles = await asyncio.wait_for(
                 parser.fetch_new_articles(
                     source_id=source.id,
                     base_url=source.base_url,
                     since=since
                 ),
-                timeout=30.0
+                timeout=SCRAPER_TIMEOUT_SECONDS
             )
             logger.info(f"Found {len(new_articles)} new articles from {source.agency_name}")
         except asyncio.TimeoutError:
