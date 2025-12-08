@@ -36,6 +36,35 @@ from app.config_loader import sync_sources_to_db
 from app.logging_config import setup_logging, get_logger
 
 from contextlib import asynccontextmanager
+from sqlalchemy import inspect
+
+def verify_database_schema():
+    """
+    Verify that the database schema is up-to-date.
+    Checks for required columns that were added in recent migrations.
+    
+    Returns:
+        tuple: (is_valid: bool, message: str)
+            - is_valid: True if schema is valid, False otherwise
+            - message: Description of validation result or error
+    """
+    inspector = inspect(engine)
+    
+    # Check if incidents_enriched table exists
+    if 'incidents_enriched' not in inspector.get_table_names():
+        return False, "Table 'incidents_enriched' does not exist. Run 'alembic upgrade head' to create tables."
+    
+    # Check for required columns (added in various migrations)
+    # These columns are essential for the current version of the application
+    required_columns = ['crime_category', 'temporal_context', 'weapon_involved', 'tactical_advice']
+    existing_columns = [col['name'] for col in inspector.get_columns('incidents_enriched')]
+    
+    missing_columns = [col for col in required_columns if col not in existing_columns]
+    
+    if missing_columns:
+        return False, f"Missing columns in incidents_enriched table: {', '.join(missing_columns)}. Run 'alembic upgrade head' to update schema."
+    
+    return True, "Database schema is up-to-date"
 
 # Configuration constants
 SCRAPER_TIMEOUT_SECONDS = 30.0  # Timeout per source when fetching articles
@@ -119,6 +148,14 @@ Base.metadata.create_all(bind=engine)
 async def lifespan(app: FastAPI):
     """Lifespan event handler for startup/shutdown."""
     logger.info("Starting Crimewatch Intel Backend")
+    
+    # Verify database schema is up-to-date
+    schema_valid, schema_message = verify_database_schema()
+    if not schema_valid:
+        logger.error(f"Database schema verification failed: {schema_message}")
+        logger.error("Please run 'alembic upgrade head' to update the database schema.")
+        raise RuntimeError(f"Database schema is outdated: {schema_message}")
+    logger.info(f"Database schema verification: {schema_message}")
     
     # NOTE: Source sync deliberately not performed at startup.
     # Sources are synced only when the /api/refresh endpoint is invoked.

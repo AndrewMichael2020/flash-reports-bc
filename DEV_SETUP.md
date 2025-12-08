@@ -22,10 +22,12 @@ cd backend
 cp .env.example .env
 ```
 
-Edit `backend/.env` and add your Gemini API key:
+Edit `backend/.env` and add your Gemini API key (optional but recommended):
 ```bash
 GEMINI_API_KEY=your_actual_api_key_here
 ```
+
+**Note:** The app will work without a Gemini API key (using dummy enrichment), but you won't get AI-powered incident analysis. See [Enable LLM Enrichment](#6-enable-llm-enrichment-optional-but-recommended) for details.
 
 **Important:** Keep all other settings at their defaults. The `ENV=dev` and CORS settings are pre-configured for Codespaces.
 
@@ -57,17 +59,22 @@ source venv/bin/activate
 # Install dependencies
 pip install -r requirements.txt -q
 
-# Run database migrations
+# CRITICAL: Run database migrations to create/update schema
+# This step is REQUIRED after any code update that changes the database schema
 alembic upgrade head
 
 # Start the backend server (CLI-friendly)
 ENV=dev uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
+**⚠️ IMPORTANT:** You MUST run `alembic upgrade head` before starting the server. If you skip this step, you will get "no such column" errors when the API tries to query the database.
+
 **Alternative (using the dev launcher):**
 ```bash
 cd backend
 source venv/bin/activate
+# Make sure migrations are up-to-date first!
+alembic upgrade head
 python dev_server.py
 ```
 
@@ -121,6 +128,45 @@ Expected output:
   ✓ PASS - Status: 200
 Results: 3 passed, 0 failed
 ```
+
+### 6. Enable LLM Enrichment (Optional but Recommended)
+
+The application can run without LLM enrichment (using dummy enrichment for testing), but to get full functionality with AI-powered incident analysis, you need to enable Gemini enrichment.
+
+#### Get a Gemini API Key
+
+1. Go to [Google AI Studio](https://aistudio.google.com/app/apikey)
+2. Sign in with your Google account
+3. Click "Create API Key"
+4. Copy the generated API key
+
+#### Configure the Backend
+
+Edit `backend/.env` and replace `your_api_key_here` with your actual API key:
+
+```bash
+GEMINI_API_KEY=AIza...your-actual-key-here
+```
+
+#### Restart the Backend
+
+Stop the backend server (Ctrl+C) and restart it. You should see these log messages:
+
+```
+INFO - GEMINI_API_KEY found, initializing Gemini client
+INFO - Gemini client initialized successfully
+INFO - GeminiEnricher configured: model_name=gemini-1.5-flash, prompt_version=v1.0
+INFO - Gemini enricher initialized with model=gemini-1.5-flash prompt_version=v1.0
+```
+
+#### Without LLM Enrichment
+
+If you don't set `GEMINI_API_KEY`, the backend will use dummy enrichment:
+- All incidents will have severity "MEDIUM"
+- Summaries will be "Summary not available (enrichment disabled)"
+- No entity extraction or geocoding
+
+This is fine for testing the UI and basic functionality, but you won't see the AI-powered features in action.
 
 ---
 
@@ -227,6 +273,29 @@ The frontend will be at `http://localhost:3000` and will proxy API requests to `
 ---
 
 ## Troubleshooting
+
+### Issue: Backend crashes with "no such column" error
+
+**Symptoms:**
+- Backend logs show: `sqlite3.OperationalError: no such column: incidents_enriched.crime_category`
+- API requests return 500 Internal Server Error
+- Backend refuses to start with "Database schema is outdated" error
+
+**Cause:**
+The database schema is outdated and missing new columns added in recent updates (PR #22).
+
+**Fix:**
+Run the database migrations to update the schema:
+```bash
+cd backend
+source venv/bin/activate  # If not already activated
+alembic upgrade head
+```
+
+Then restart the backend server. This command applies all pending database migrations.
+
+**Prevention:**
+Always run `alembic upgrade head` after pulling new code changes that might include database schema updates.
 
 ### Issue: `ERR_CONNECTION_REFUSED` when calling `/api/refresh`
 
