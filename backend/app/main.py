@@ -465,7 +465,12 @@ async def get_incidents(
             severity=severity,
             tags=enriched.tags or [],
             entities=entities_list,
-            relatedIncidentIds=[]
+            relatedIncidentIds=[],
+            # Map new citizen-facing fields
+            crimeCategory=enriched.crime_category,
+            temporalContext=enriched.temporal_context,
+            weaponInvolved=enriched.weapon_involved,
+            tacticalAdvice=enriched.tactical_advice
         )
         incidents.append(incident)
     
