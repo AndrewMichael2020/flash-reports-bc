@@ -68,8 +68,8 @@ sources:
     region_label: "Fraser Valley, BC"
     source_type: "MUNICIPAL_PD_NEWS"
     base_url: "https://www.abbypd.ca/news-releases"
-    parser_id: "municipal_list"
-    active: false
+    parser_id: "rcmp"      # was "municipal_list"
+    active: true
     notes: "Municipal police department for Abbotsford city"
 
   # ==========================================

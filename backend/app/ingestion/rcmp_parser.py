@@ -32,6 +32,7 @@ logger = logging.getLogger(__name__)
 # Optional Playwright import; we'll fail gracefully and raise helpful error if used without playwright installed
 try:
     from playwright.async_api import async_playwright, Page
+    from playwright._impl._errors import TargetClosedError
     PLAYWRIGHT_AVAILABLE = True
 except Exception as e:
     PLAYWRIGHT_AVAILABLE = False
@@ -39,6 +40,9 @@ except Exception as e:
 
 RCMP_MAX_ARTICLES = int(os.getenv("RCMP_MAX_ARTICLES", "20"))
 RCMP_TEST_JSON = os.getenv("RCMP_TEST_JSON", "")  # If set, parse a JSON sample instead of network fetching
+# New: tune RCMP playwright timeouts (ms)
+RCMP_LISTING_TIMEOUT_MS = int(os.getenv("RCMP_LISTING_TIMEOUT_MS", "20000"))  # 20s
+RCMP_ARTICLE_TIMEOUT_MS = int(os.getenv("RCMP_ARTICLE_TIMEOUT_MS", "15000"))  # 15s
 
 
 class RCMPParser(SourceParser):
@@ -173,49 +177,25 @@ class RCMPParser(SourceParser):
                         if since and published_at and published_at <= since:
                             continue
                         results.append(meta)
-                        await asyncio.sleep(0.5)
+                        await asyncio.sleep(0.3)
                     except Exception as e:
                         # Skip articles that fail after retries
-                        logger.warning(f"Failed to fetch article {meta['url']}: {e}")
+                        logger.warning("RCMPParser: failed to fetch article %s: %s", meta.get('url'), e)
                         continue
             finally:
-                await browser.close()
-
-        return self._to_raw_article_list(results, since)
-
-    async def _fetch_via_httpx(self, listing_url: str, since: Optional[datetime]) -> List[RawArticle]:
-        """
-        Fallback HTTP-based scraping using requests/bs4 if playwright is disabled/not available.
-        This is best-effort and may not work for JS-heavy RCMP pages.
-        """
-        import httpx  # imported lazily
-        items = []
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            resp = await client.get(listing_url, follow_redirects=True)
-            resp.raise_for_status()
-            soup = BeautifulSoup(resp.text, 'html.parser')
-            items = self._extract_articles_from_soup(soup, listing_url)
-            results = []
-            for meta in items[:RCMP_MAX_ARTICLES]:
                 try:
-                    r = await client.get(meta['url'], follow_redirects=True)
-                    r.raise_for_status()
-                    soup2 = BeautifulSoup(r.text, 'html.parser')
-                    body = self._extract_article_content(soup2)
-                    if not body or len(body) < 50:
-                        continue
-                    meta['body'] = body
-                    meta['raw_html'] = r.text[:10000]
-                    results.append(meta)
-                except Exception:
-                    continue
+                    await browser.close()
+                except TargetClosedError:
+                    # Browser already closed due to timeout/cancellation; safe to ignore
+                    logger.debug("RCMPParser: browser already closed, ignoring TargetClosedError on close()")
+
         return self._to_raw_article_list(results, since)
 
     async def _parse_listing_page(self, page: Page, listing_url: str) -> List[Dict[str, Any]]:
         """
         Use the Playwright page to fetch and parse article links from listing_url.
         """
-        await page.goto(listing_url, wait_until="networkidle", timeout=30000)
+        await page.goto(listing_url, wait_until="load", timeout=RCMP_LISTING_TIMEOUT_MS)
         await page.wait_for_timeout(1000)
         content = await page.content()
         soup = BeautifulSoup(content, 'html.parser')
@@ -226,7 +206,7 @@ class RCMPParser(SourceParser):
         Fetch and extract content from a single article page using Playwright.
         Returns (body_text, full_html)
         """
-        await page.goto(article_url, wait_until="networkidle", timeout=30000)
+        await page.goto(article_url, wait_until="load", timeout=RCMP_ARTICLE_TIMEOUT_MS)
         await page.wait_for_timeout(500)
         content = await page.content()
         soup = BeautifulSoup(content, 'html.parser')
@@ -238,7 +218,7 @@ class RCMPParser(SourceParser):
 
         This is intentionally aligned with tests/test_rcmp_news_parsing.py:
         - Prefer <article> / list/card structures.
-        - Only keep links that look like real news items (contain /news/ and digits).
+        - Only keep links that look like real news items.
         - Filter out navigation/utility links like "Newsroom archive", "Social media", etc.
         """
         items: List[Dict[str, Any]] = []
@@ -262,19 +242,32 @@ class RCMPParser(SourceParser):
 
         def is_article_href(href: str) -> bool:
             """
-            Good RCMP articles typically are under /bc/<detachment>/news/ and contain some digits
-            (year or id). Mirror the standalone test's /news/ + digits heuristic.
+            Robust validation for multiple agency URL patterns:
+            1. RCMP: /news/... containing digits
+            2. AbbyPD: /blog/news_releases/...
+            3. Surrey Police: /news-events/news/...
             """
             if not href:
                 return False
-            # full or relative path is fine; just check the path fragment
-            path = href.split("://", 1)[-1]  # strip scheme if present
-            # Must contain /news/ and at least one digit
-            if "/news/" not in path:
-                return False
-            if not any(ch.isdigit() for ch in path):
-                return False
-            return True
+
+            # Normalize path: strip scheme/domain
+            path = href.split("://", 1)[-1]  # "host/..."; we only care about "..."
+
+            # --- PATTERN 1: Text-slug agencies (no digits) ---
+            known_slug_paths = [
+                "/blog/news_releases/",  # Abbotsford Police Department
+                "/news-events/news/",    # Surrey Police Service
+            ]
+            for prefix in known_slug_paths:
+                if prefix in path:
+                    return True
+
+            # --- PATTERN 2: Strict RCMP pattern ---
+            # Require /news/ and at least one digit to filter nav/utility links.
+            if "/news/" in path and any(ch.isdigit() for ch in path):
+                return True
+
+            return False
 
         def to_full_url(href: str) -> Optional[str]:
             if not href:
@@ -285,7 +278,7 @@ class RCMPParser(SourceParser):
                 return urljoin(self.base_url, href)
             return None
 
-        # Strategy 1: look for <article> and news card structures (as in the standalone script)
+        # Strategy 1: look for <article> and news card structures
         for tag in soup.find_all(
             ["article", "li", "div"],
             class_=lambda x: x and ("news" in str(x).lower() or "article" in str(x).lower() or "item" in str(x).lower()),

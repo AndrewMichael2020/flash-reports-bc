@@ -12,11 +12,12 @@ function formatTime(ts: string | undefined | null): string {
   if (!ts) return '';
   const d = new Date(ts);
   if (Number.isNaN(d.getTime())) return '';
-  // e.g. "Dec 8 · 07:51"
+  // Example: "Nov 28, 2025 · 4:37 PM"
   return d.toLocaleString(undefined, {
+    year: 'numeric',
     month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
+    day: '2-digit',
+    hour: 'numeric',
     minute: '2-digit',
   }).replace(',', '');
 }

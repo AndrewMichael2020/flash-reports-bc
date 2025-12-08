@@ -67,7 +67,7 @@ def verify_database_schema():
     return True, "Database schema is up-to-date"
 
 # Configuration constants
-SCRAPER_TIMEOUT_SECONDS = 30.0  # Timeout per source when fetching articles
+SCRAPER_TIMEOUT_SECONDS = 45.0  # Timeout per source when fetching articles (was 30.0)
 
 # Default enrichment values for fallback when LLM enrichment fails or is unavailable
 DEFAULT_ENRICHMENT_VALUES = {
@@ -386,7 +386,8 @@ async def refresh_feed(
                     summary_tactical = article.body_raw[:200] if len(article.body_raw) > 200 else article.body_raw
                     enrichment = {
                         **DEFAULT_ENRICHMENT_VALUES,
-                        "summary_tactical": summary_tactical
+                        "summary_tactical": summary_tactical,
+                        "incident_occurred_at": None,
                     }
                     llm_model = "none"
                     prompt_version = "dummy_v1"
@@ -395,7 +396,8 @@ async def refresh_feed(
                 summary_tactical = article.body_raw[:200] if len(article.body_raw) > 200 else article.body_raw
                 enrichment = {
                     **DEFAULT_ENRICHMENT_VALUES,
-                    "summary_tactical": summary_tactical
+                    "summary_tactical": summary_tactical,
+                    "incident_occurred_at": None,
                 }
                 llm_model = "none"
                 prompt_version = "dummy_v1"
@@ -416,8 +418,8 @@ async def refresh_feed(
                 tactical_advice=enrichment.get("tactical_advice"),
                 llm_model=llm_model,
                 prompt_version=prompt_version,
-                # New optional datetime; enrichment pipeline may start populating this later.
-                incident_occurred_at=None,
+                # Use LLM-derived incident time if available
+                incident_occurred_at=enrichment.get("incident_occurred_at"),
             )
             db.add(enriched)
             new_articles_count += 1
@@ -453,10 +455,11 @@ async def get_incidents(
 ):
     """
     Get incidents for a specific region.
-    
+
     Returns incidents in a format compatible with the frontend Incident type.
     """
     # Query incidents with joins
+    # Order by "effective" time: incident_occurred_at (if set), else published_at, else created_at.
     incidents_data = db.query(
         ArticleRaw, IncidentEnriched, Source
     ).join(
@@ -466,9 +469,16 @@ async def get_incidents(
     ).filter(
         Source.region_label == region
     ).order_by(
-        ArticleRaw.published_at.desc()
+        # Newest effective time on top
+        (IncidentEnriched.incident_occurred_at
+         .desc()
+         .nullslast()),
+        (ArticleRaw.published_at
+         .desc()
+         .nullslast()),
+        ArticleRaw.created_at.desc(),
     ).limit(limit).all()
-    
+
     # Transform to response format
     incidents = []
     for article, enriched, source in incidents_data:
@@ -480,7 +490,7 @@ async def get_incidents(
             "CRITICAL": "Critical"
         }
         severity = severity_map.get(enriched.severity, "Medium")
-        
+
         # Extract entities as strings
         entities_list = []
         if enriched.entities:
@@ -489,7 +499,7 @@ async def get_incidents(
                     entities_list.append(entity.get("name", str(entity)))
                 else:
                     entities_list.append(str(entity))
-        
+
         # Map source type
         source_type_map = {
             "RCMP_NEWSROOM": "Local Police",
@@ -497,10 +507,18 @@ async def get_incidents(
             "STATE_POLICE": "State Police",
         }
         source_type = source_type_map.get(source.source_type, "Local Police")
-        
+
+        # Effective timestamp for UI feed: event time if known, else publication, else created_at
+        if enriched.incident_occurred_at:
+            effective_ts = enriched.incident_occurred_at
+        elif article.published_at:
+            effective_ts = article.published_at
+        else:
+            effective_ts = article.created_at
+
         incident = IncidentResponse(
             id=str(article.id),
-            timestamp=article.published_at.isoformat() if article.published_at else article.created_at.isoformat(),
+            timestamp=effective_ts.isoformat(),
             source=source_type,
             location=enriched.location_label or source.region_label,
             coordinates=CoordinatesSchema(
@@ -518,12 +536,13 @@ async def get_incidents(
             weaponInvolved=enriched.weapon_involved,
             tacticalAdvice=enriched.tactical_advice,
             incidentOccurredAt=enriched.incident_occurred_at.isoformat() if enriched.incident_occurred_at else None,
+            agencyName=source.agency_name,
         )
         incidents.append(incident)
-    
+
     return IncidentsResponse(
         region=region,
-        incidents=incidents
+        incidents=incidents,
     )
 
 
@@ -734,8 +753,6 @@ async def debug_candidates(
         if not source:
             raise HTTPException(status_code=404, detail="Source not found")
         target_url = source.base_url
-        parser_id = source.parser_id
-    else:
         target_url = base_url
         # attempt to infer parser id from sources config DB if available
         src = db.query(Source).filter(Source.base_url == base_url).first()

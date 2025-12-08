@@ -5,7 +5,6 @@ import NetworkGraph from './components/NetworkGraph';
 import IncidentFeed from './components/IncidentFeed';
 import DetailPanel from './components/DetailPanel';
 import MetricsHUD from './components/MetricsHUD';
-import FilterControls from './components/FilterControls';
 import IncidentMap from './components/IncidentMap';
 
 const REGIONS = [
@@ -25,7 +24,6 @@ function App() {
   const [selectedIncidentId, setSelectedIncidentId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [status, setStatus] = useState("System Ready");
-  const [activeFilters, setActiveFilters] = useState<string[]>([]);
 
   // --- initial load: read-only, no refresh ---
   const loadInitialData = useCallback(async () => {
@@ -72,7 +70,6 @@ function App() {
     setStatus(`Refreshing ${region} feeds...`);
     setIncidents([]);
     setGraphData({ nodes: [], links: [] });
-    setActiveFilters([]);
 
     try {
       const refreshResult = await BackendClient.refreshFeed(region);
@@ -117,73 +114,17 @@ function App() {
     }
   };
 
-  const toggleFilter = (filter: string) => {
-    setActiveFilters(prev => 
-      prev.includes(filter) ? prev.filter(f => f !== filter) : [...prev, filter]
-    );
-  };
-
-  // Filter Logic
   const filteredIncidents = useMemo(() => {
-    if (activeFilters.length === 0) return incidents;
-
-    return incidents.filter(inc => {
-      // Check Critical Only
-      if (activeFilters.includes('Critical Only') && inc.severity !== Severity.CRITICAL) {
-        return false;
-      }
-      
-      // Check Categories/Tags
-      const categoryFilters = activeFilters.filter(f => f !== 'Critical Only');
-      if (categoryFilters.length > 0) {
-        const hasMatch = categoryFilters.some(filter => 
-          inc.tags.some(tag => tag.toLowerCase().includes(filter.toLowerCase())) ||
-          inc.summary.toLowerCase().includes(filter.toLowerCase())
-        );
-        if (!hasMatch) return false;
-      }
-
-      return true;
-    });
-  }, [incidents, activeFilters]);
+    // no filters: just return all incidents
+    return incidents;
+  }, [incidents]);
 
   const filteredGraphData = useMemo(() => {
-    if (activeFilters.length === 0) return graphData;
-
-    // Get IDs of visible incidents
-    const visibleIds = new Set(filteredIncidents.map(i => i.id));
-    
-    // Filter nodes
-    const visibleNodes = graphData.nodes.filter(node => {
-        if (node.type === 'incident') return visibleIds.has(node.id);
-        
-        const connectedToVisible = graphData.links.some(link => {
-            const sourceId = typeof link.source === 'object' ? (link.source as any).id : link.source;
-            const targetId = typeof link.target === 'object' ? (link.target as any).id : link.target;
-            
-            const isConnected = (sourceId === node.id && visibleIds.has(targetId)) ||
-                                (targetId === node.id && visibleIds.has(sourceId));
-            return isConnected;
-        });
-        return connectedToVisible;
-    });
-
-    const visibleNodeIds = new Set(visibleNodes.map(n => n.id));
-
-    const visibleLinks = graphData.links.filter(link => {
-        const sourceId = typeof link.source === 'object' ? (link.source as any).id : link.source;
-        const targetId = typeof link.target === 'object' ? (link.target as any).id : link.target;
-        return visibleNodeIds.has(sourceId) && visibleNodeIds.has(targetId);
-    });
-
-    return { nodes: visibleNodes, links: visibleLinks };
-
-  }, [graphData, filteredIncidents, activeFilters]);
-
+    // no filters: just return full graph
+    return graphData;
+  }, [graphData]);
 
   const selectedIncident = incidents.find(i => i.id === selectedIncidentId) || null;
-
-  const uniqueTags = Array.from(new Set(incidents.flatMap(i => i.tags)));
 
   return (
     <div className="flex flex-col h-screen w-full bg-slate-950 text-slate-200 font-sans overflow-hidden">
@@ -261,11 +202,6 @@ function App() {
           {/* Top HUD Area */}
           <div className="p-4 border-b border-slate-800/50 bg-slate-900/20 backdrop-blur-sm z-10">
             <MetricsHUD incidents={incidents} graphNodes={graphData.nodes} />
-            <FilterControls 
-              activeFilters={activeFilters} 
-              onToggleFilter={toggleFilter} 
-              availableTags={uniqueTags}
-            />
           </div>
 
           {/* Visualization Split View */}

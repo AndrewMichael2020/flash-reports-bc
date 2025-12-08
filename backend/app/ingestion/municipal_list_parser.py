@@ -131,6 +131,49 @@ class MunicipalListParser(SourceParser):
             ]
             return any(kw in h for kw in static_slug_keywords)
 
+        # NEW: Abbotsford PD static-page filter
+        def is_abbypd_static(title: str, href: str) -> bool:
+            """
+            Filter out known Abbotsford PD non-incident / admin pages:
+            board members, meeting schedule, history, foundation, etc.
+            """
+            if "abbypd.ca" not in host:
+                return False
+
+            t = (title or "").strip().lower()
+            h = (href or "").strip().lower()
+
+            title_keywords = [
+                "police board members",
+                "police board",
+                "meeting schedule",
+                "minutes",
+                "previous years",
+                "our history",
+                "progress gallery",
+                "message from the chief",
+                "abbotsford police foundation",
+                "foundation",
+                "about us",
+                "organization structure",
+                "governance",
+            ]
+            if any(kw in t for kw in title_keywords):
+                return True
+
+            slug_keywords = [
+                "police-board",
+                "board-members",
+                "meeting-schedule",
+                "minutes",
+                "our-history",
+                "progress-gallery",
+                "message-from-the-chief",
+                "abbotsford-police-foundation",
+                "foundation",
+            ]
+            return any(kw in h for kw in slug_keywords)
+
         # Look for common patterns in municipal sites
         # Try card-style layouts first
         cards = soup.find_all(['div', 'article', 'li'], class_=lambda c: c and (
@@ -177,6 +220,11 @@ class MunicipalListParser(SourceParser):
             if is_surrey_static(title, href):
                 logger.debug("MunicipalListParser: dropping Surrey static page title=%r href=%r", title, href)
                 continue
+
+            # Abbotsford-specific: drop known static / admin pages
+            if is_abbypd_static(title, href):
+                logger.debug("MunicipalListParser: dropping Abbotsford static page title=%r href=%r", title, href)
+                continue
             
             # Build full URL
             if not href.startswith('http'):
@@ -215,6 +263,33 @@ class MunicipalListParser(SourceParser):
                 'published_at': published_at
             })
         
+        # Surrey-specific fallback: if nothing found yet, try a looser pattern
+        if not items and "surreypolice.ca" in host:
+            logger.debug("MunicipalListParser: Surrey fallback selector engaged for %s", base_url)
+            # Look for anchors under /news-releases/ in main content
+            main = soup.find('main') or soup.find('div', id='main-content') or soup
+            for a in main.find_all('a', href=True):
+                href = a.get('href', '')
+                title = a.get_text(strip=True)
+                if not title or len(title) < 10:
+                    continue
+                if 'news-releases' not in href:
+                    continue
+                if is_surrey_static(title, href):
+                    continue
+                if not href.startswith('http'):
+                    href_full = urljoin(base_url, href)
+                else:
+                    href_full = href
+                if not href_full.startswith(('http://', 'https://')):
+                    continue
+                # Do NOT attempt to parse date here; let published_at be None
+                items.append({
+                    'url': href_full,
+                    'title': title,
+                    'published_at': None,
+                })
+
         return items
     
     def _parse_date(self, text: str) -> Optional[datetime]:

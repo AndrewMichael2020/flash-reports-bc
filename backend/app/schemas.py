@@ -56,6 +56,8 @@ class IncidentResponse(BaseModel):
     tacticalAdvice: Optional[str] = None
     # New optional field: ISO timestamp when the incident occurred (if known)
     incidentOccurredAt: Optional[str] = None
+    # New: specific agency/department name (e.g. "Langley RCMP")
+    agencyName: Optional[str] = None
 
 
 class IncidentsResponse(BaseModel):

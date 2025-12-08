@@ -35,11 +35,16 @@ env/
 ENV/
 .venv
 
-# Database
+# Database (frontend + backend)
 *.db
 *.sqlite
 *.sqlite3
 postgres_data/
+# Explicit backend DB file (default for this project)
+backend/crimewatch.db
 
 # Alembic
 alembic/versions/*.pyc
+
+# Backend environment file (config, not in git)
+backend/.env

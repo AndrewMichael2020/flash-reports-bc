@@ -1,8 +1,10 @@
 # Crimewatch Intel Dashboard
 
-**AI-Powered Police Intelligence Aggregator & Correlation Engine**
+**AI-Powered Civic & Community Safety Incident Dashboard**
 
-Crimewatch Intel is a tactical dashboard designed for analyzing, classifying, and visualizing law enforcement incidents. It aggregates police newsroom feeds from BC, Alberta, and Washington State, using Google's **Gemini Flash** model to extract structured intelligence and build correlation graphs identifying organized crime activity, gang conflicts, and systemic threats.
+Crimewatch Intel is a civic and community-focused dashboard designed for summarizing and visualizing public law-enforcement incident information. It aggregates police newsroom feeds from BC, Alberta, and Washington State, using Google's **Gemini Flash** model to extract structured metadata and build correlation graphs that highlight patterns such as recurring locations, repeated incident types, and emerging safety themes.
+
+The interface has a tactical / intelligence-inspired UI, but the underlying purpose is to make **public police news releases** easier for citizens and local communities to explore and understand.
 
 ## 🏗️ Architecture
 
@@ -15,23 +17,23 @@ Crimewatch Intel is a tactical dashboard designed for analyzing, classifying, an
 
 The system operates in two layers:
 
-1. **Backend ingestion & enrichment**: Scrapes police newsroom websites, stores raw articles, and enriches them once with structured AI analysis
-2. **Frontend visualization**: Renders incidents, relationship graphs, and geospatial maps from backend API
+1. **Backend ingestion & enrichment**: Scrapes official public police newsroom websites, stores raw articles, and enriches them once with structured AI analysis.
+2. **Frontend visualization**: Renders incidents, relationship graphs, and geospatial maps from backend API in a “tactical‑style” UI for civic situational awareness.
 
 See [STRATEGY.md](STRATEGY.ms) for detailed architecture documentation.
 
 ## 🚀 Features
 
-*   **Multi-Source Aggregation**: Ingests real police newsroom feeds from RCMP detachments, municipal police, and specialized units
-*   **AI Intelligence Analysis**:
-    *   **Severity Scoring**: Auto-classifies incidents (Low to Critical)
-    *   **Entity Extraction**: Identifies specific gangs, known associates, and hot-zones
-    *   **Summarization**: Converts bureaucratic reports into tactical summaries
-    *   **Geocoding**: Extracts and validates incident locations
-*   **Visual Intelligence**:
-    *   **Neural Link Graph**: A D3.js "Mind Map" showing relationships between incidents, suspects, and locations
-    *   **Geospatial Map**: Leaflet.js dark-mode map for physical tracking of events
-*   **Tactical HUD**: Real-time metrics on Threat Condition, Active Factions, and Volatility
+*   **Multi-Source Aggregation**: Ingests public police newsroom feeds from RCMP detachments, municipal police, and specialized units.
+*   **AI-Assisted Incident Summaries**:
+    *   **Severity Scoring**: Classifies incidents (Low to Critical) based on text in the news release.
+    *   **Entity Extraction**: Identifies key organizations, locations, and units mentioned in releases (not individual officials).
+    *   **Summarization**: Converts long-form news releases into concise, citizen-readable summaries.
+    *   **Location Labels**: Extracts and normalizes incident locations for mapping.
+*   **Visual Exploration**:
+    *   **Relationship Graph**: D3.js graph showing connections between incidents, organizations, and locations.
+    *   **Geospatial Map**: Leaflet.js dark-mode map for viewing incident distribution across a region.
+*   **HUD-Style Overview**: A “tactical-feel” heads-up display with factual metrics (threat condition from severity mix, critical events, primary reporting sources).
 *   **Region-based filtering**: Fraser Valley, Calgary, Seattle Metro, etc.
 
 <img width="1568" height="928" alt="community-watch" src="https://github.com/user-attachments/assets/bd57848c-2c00-4245-b4f4-0b8a8e6d95f2" />
@@ -154,15 +156,15 @@ If you're running this in GitHub Codespaces, see [DEV_SETUP.md](DEV_SETUP.md) fo
 1. **Start both backend and frontend servers** (see Quick Start above)
 
 2. **Trigger ingestion**:
-   - In the browser, select a region (e.g., "Fraser Valley, BC")
-   - Click **REFRESH FEED** button in the top-right
-   - The backend will scrape RCMP newsrooms and enrich articles with AI analysis
+   - In the browser, select a region (e.g., "Fraser Valley, BC").
+   - Click **REFRESH FEED** button in the top-right.
+   - The backend will scrape public RCMP and municipal newsroom pages and enrich articles with AI-generated metadata.
 
-3. **View intelligence**:
-   - Browse incidents in the left panel
-   - Explore entity relationships in the Neural Link Graph
-   - See geographic distribution on the map
-   - Click any incident for detailed tactical analysis
+3. **View information**:
+   - Browse incidents in the left panel.
+   - Explore relationships between incidents, organizations, and locations in the central graph.
+   - See geographic distribution on the map.
+   - Click any incident for a structured summary and extracted context under “Analysis and Sources”.
 
 ### Filtering & Analysis
 
@@ -264,7 +266,13 @@ See [strategy_implementation_log.md](strategy_implementation_log.md) for detaile
 
 ## ⚠️ Data Disclaimer
 
-This tool aggregates real police newsroom feeds but uses AI to analyze and structure the data. Intelligence assessments are generated by large language models and should be verified against official sources. This is a demonstration platform for visualization and correlation logic - not a replacement for official law enforcement systems or emergency response tools.
+This tool aggregates **public police newsroom feeds** and uses AI to analyze and structure that information. Intelligence-style visualizations and wording are for UI/UX purposes only.
+
+- It is **not** an operational tactical platform.
+- It does **not** access dispatch systems, live CAD data, or confidential records.
+- AI-generated summaries, categorizations, and relationships may be incomplete or imprecise and should always be verified against the original news releases and official channels.
+
+Crimewatch Intel is intended as a **civic and community information dashboard** to help residents and local communities better understand patterns in publicly reported incidents. It is **not** a replacement for official law enforcement systems, emergency response tools, or formal threat assessments.
 
 ## 📄 License
 

@@ -22,6 +22,8 @@ export interface Incident {
   // Optional: when the incident actually occurred, if backend knows it
   incidentOccurredAt?: string | null;
   source: SourceType;
+  // New: specific agency name from backend (e.g. "Langley RCMP")
+  agencyName?: string | null;
   location: string;
   coordinates: { lat: number; lng: number };
   summary: string;

@@ -190,6 +190,13 @@ Tasks (STRICT):
 
 10. Tactical Advice: Brief safety tip or context for citizens (e.g. "Avoid the area", "Increased patrols in effect", "No ongoing threat to public", "Suspect in custody"). Return null if not applicable.
 
+11. Incident Occurred Datetime:
+    - If the body text contains a specific date and (approximate) time OF THE INCIDENT THAT IS BEING REPORTED
+      (e.g. "On November 28, 2025, at approximately 4:37 p.m."),
+      extract a single best-guess ISO 8601 datetime string in local time (e.g. "2025-11-28T16:37:00").
+    - If multiple times are mentioned, pick the main incident start time.
+    - If no clear incident time is given, set this field to null.
+
 Return ONLY a single JSON object with this exact shape:
 {{
   "severity": "LOW" | "MEDIUM" | "HIGH" | "CRITICAL",
@@ -207,7 +214,8 @@ Return ONLY a single JSON object with this exact shape:
   "crime_category": "string (default Unknown if unsure)",
   "temporal_context": "string or null",
   "weapon_involved": "string or null",
-  "tactical_advice": "string or null"
+  "tactical_advice": "string or null",
+  "incident_occurred_at": "ISO-8601 datetime string or null"
 }}
 """
 
@@ -266,6 +274,18 @@ Return ONLY a single JSON object with this exact shape:
             raw_entities = result.get("entities") or []
             filtered_entities = self._filter_entities(raw_entities)
 
+            # Parse incident_occurred_at if provided as string
+            incident_occurred_at = result.get("incident_occurred_at")
+            if isinstance(incident_occurred_at, str):
+                try:
+                    from dateutil import parser as date_parser  # lazy import
+                    dt = date_parser.parse(incident_occurred_at)
+                    incident_occurred_at_dt = dt
+                except Exception:
+                    incident_occurred_at_dt = None
+            else:
+                incident_occurred_at_dt = None
+
             return {
                 "severity": result.get("severity", "MEDIUM"),
                 "summary_tactical": result.get("summary_tactical", title[:150] if title else ""),
@@ -279,6 +299,7 @@ Return ONLY a single JSON object with this exact shape:
                 "temporal_context": result.get("temporal_context"),
                 "weapon_involved": result.get("weapon_involved"),
                 "tactical_advice": result.get("tactical_advice"),
+                "incident_occurred_at": incident_occurred_at_dt,
             }
 
         except Exception as e:
@@ -301,4 +322,5 @@ Return ONLY a single JSON object with this exact shape:
                 "temporal_context": None,
                 "weapon_involved": None,
                 "tactical_advice": None,
+                "incident_occurred_at": None,
             }
