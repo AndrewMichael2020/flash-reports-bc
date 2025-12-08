@@ -57,17 +57,22 @@ source venv/bin/activate
 # Install dependencies
 pip install -r requirements.txt -q
 
-# Run database migrations
+# CRITICAL: Run database migrations to create/update schema
+# This step is REQUIRED after any code update that changes the database schema
 alembic upgrade head
 
 # Start the backend server (CLI-friendly)
 ENV=dev uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
+**⚠️ IMPORTANT:** You MUST run `alembic upgrade head` before starting the server. If you skip this step, you will get "no such column" errors when the API tries to query the database.
+
 **Alternative (using the dev launcher):**
 ```bash
 cd backend
 source venv/bin/activate
+# Make sure migrations are up-to-date first!
+alembic upgrade head
 python dev_server.py
 ```
 
@@ -227,6 +232,29 @@ The frontend will be at `http://localhost:3000` and will proxy API requests to `
 ---
 
 ## Troubleshooting
+
+### Issue: Backend crashes with "no such column" error
+
+**Symptoms:**
+- Backend logs show: `sqlite3.OperationalError: no such column: incidents_enriched.crime_category`
+- API requests return 500 Internal Server Error
+- Backend refuses to start with "Database schema is outdated" error
+
+**Cause:**
+The database schema is outdated and missing new columns added in recent updates (PR #22).
+
+**Fix:**
+Run the database migrations to update the schema:
+```bash
+cd backend
+source venv/bin/activate  # If not already activated
+alembic upgrade head
+```
+
+Then restart the backend server. This command applies all pending database migrations.
+
+**Prevention:**
+Always run `alembic upgrade head` after pulling new code changes that might include database schema updates.
 
 ### Issue: `ERR_CONNECTION_REFUSED` when calling `/api/refresh`
 
