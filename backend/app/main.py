@@ -471,12 +471,25 @@ async def background_refresh_task(job_id: str, region: str):
         job_id: UUID of the refresh job
         region: Region to refresh
     """
-    db = next(get_db())
+    # Get a new database session for this background task
+    db_gen = get_db()
+    db = next(db_gen)
+    
     try:
+        # Give the parent transaction time to commit
+        import asyncio
+        await asyncio.sleep(0.1)
+        
+        # Refresh the session to see any committed changes
+        db.expire_all()
+        
         # Update job status to running
         job = db.query(RefreshJob).filter(RefreshJob.job_id == job_id).first()
         if not job:
-            logger.error(f"Background refresh task: Job {job_id} not found")
+            logger.error(f"Background refresh task: Job {job_id} not found in database")
+            # Log all jobs for debugging
+            all_jobs = db.query(RefreshJob).all()
+            logger.error(f"All jobs in DB: {[j.job_id for j in all_jobs]}")
             return
         
         job.status = "running"
@@ -512,6 +525,8 @@ async def background_refresh_task(job_id: str, region: str):
             db.commit()
             logger.error(f"Background refresh failed for job {job_id}: {e}", exc_info=True)
             
+    except Exception as e:
+        logger.error(f"Critical error in background refresh task for job {job_id}: {e}", exc_info=True)
     finally:
         db.close()
 
@@ -549,7 +564,11 @@ async def refresh_feed_async(
         created_at=datetime.now(timezone.utc)
     )
     db.add(job)
+    db.flush()  # Ensure job gets an ID before commit
     db.commit()
+    db.refresh(job)  # Refresh to ensure we have the latest state
+    
+    logger.info(f"Job {job_id} committed to database with status: {job.status}")
     
     # Schedule background task
     background_tasks.add_task(background_refresh_task, job_id, region)
