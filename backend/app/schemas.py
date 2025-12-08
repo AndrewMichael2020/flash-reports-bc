@@ -101,3 +101,29 @@ class MapResponse(BaseModel):
     """Response from GET /api/map."""
     region: str
     markers: List[MapMarker]
+
+
+class RefreshAsyncRequest(BaseModel):
+    """Request to trigger async refresh for a region."""
+    region: str
+
+
+class RefreshAsyncResponse(BaseModel):
+    """Response from POST /api/refresh-async."""
+    job_id: str
+    region: str
+    status: str
+    message: str
+
+
+class RefreshStatusResponse(BaseModel):
+    """Response from GET /api/refresh-status/{job_id}."""
+    job_id: str
+    region: str
+    status: str  # 'pending' | 'running' | 'succeeded' | 'failed'
+    new_articles: Optional[int] = None
+    total_incidents: Optional[int] = None
+    error_message: Optional[str] = None
+    created_at: str
+    started_at: Optional[str] = None
+    completed_at: Optional[str] = None

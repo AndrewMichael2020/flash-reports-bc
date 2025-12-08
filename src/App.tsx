@@ -64,39 +64,118 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // run once on mount
 
-  // --- explicit refresh: calls POST /api/refresh then reloads data ---
+  // --- explicit refresh: calls POST /api/refresh-async then polls status ---
   const loadData = useCallback(async () => {
     setIsLoading(true);
-    setStatus(`Refreshing ${region} feeds...`);
+    setStatus(`Starting refresh for ${region}...`);
     setIncidents([]);
     setGraphData({ nodes: [], links: [] });
 
     try {
-      const refreshResult = await BackendClient.refreshFeed(region);
+      // Start async refresh job
+      const asyncResponse = await BackendClient.refreshFeedAsync(region);
+      const jobId = asyncResponse.job_id;
+      
+      setStatus(`Refresh job ${jobId.substring(0, 8)}... started. Fetching data...`);
 
-      if (refreshResult.new_articles > 0) {
-        setStatus(`Found ${refreshResult.new_articles} new articles. Loading incidents...`);
-      } else {
-        setStatus(`No new articles. Loading ${refreshResult.total_incidents} existing incidents...`);
+      // Poll for job completion
+      const pollInterval = 3000; // 3 seconds
+      const maxPolls = 60; // Max 3 minutes (60 * 3s = 180s)
+      let pollCount = 0;
+
+      const pollStatus = async (): Promise<boolean> => {
+        try {
+          const statusResponse = await BackendClient.getRefreshStatus(jobId);
+          
+          if (statusResponse.status === 'succeeded') {
+            setStatus(`Refresh complete: ${statusResponse.new_articles || 0} new articles. Loading incidents...`);
+            
+            // Load the fresh data
+            const [incidentsData, graphResult, mapResult] = await Promise.all([
+              BackendClient.getIncidents(region),
+              BackendClient.getGraph(region),
+              BackendClient.getMap(region),
+            ]);
+
+            setIncidents(incidentsData.incidents);
+            setGraphData({ nodes: graphResult.nodes, links: graphResult.links });
+            setStatus(`Monitoring complete. ${incidentsData.incidents.length} events logged.`);
+            return true; // Stop polling
+            
+          } else if (statusResponse.status === 'failed') {
+            setStatus(`Refresh failed: ${statusResponse.error_message || 'Unknown error'}`);
+            return true; // Stop polling
+            
+          } else if (statusResponse.status === 'running') {
+            setStatus(`Refresh in progress (${statusResponse.status})...`);
+            return false; // Continue polling
+            
+          } else {
+            // pending or other status
+            setStatus(`Refresh pending...`);
+            return false; // Continue polling
+          }
+        } catch (error) {
+          console.error("Failed to poll refresh status:", error);
+          // Continue polling on transient errors
+          return false;
+        }
+      };
+
+      // Poll until complete or max attempts
+      while (pollCount < maxPolls) {
+        const isDone = await pollStatus();
+        if (isDone) break;
+        
+        await new Promise(resolve => setTimeout(resolve, pollInterval));
+        pollCount++;
       }
 
-      const [incidentsData, graphResult, mapResult] = await Promise.all([
-        BackendClient.getIncidents(region),
-        BackendClient.getGraph(region),
-        BackendClient.getMap(region),
-      ]);
+      if (pollCount >= maxPolls) {
+        setStatus(`Refresh is taking longer than expected. It may still be running in the background.`);
+        
+        // Load whatever data is available
+        try {
+          const [incidentsData, graphResult, mapResult] = await Promise.all([
+            BackendClient.getIncidents(region),
+            BackendClient.getGraph(region),
+            BackendClient.getMap(region),
+          ]);
 
-      setIncidents(incidentsData.incidents);
-      setGraphData({ nodes: graphResult.nodes, links: graphResult.links });
+          setIncidents(incidentsData.incidents);
+          setGraphData({ nodes: graphResult.nodes, links: graphResult.links });
+        } catch (e) {
+          console.error("Failed to load data after timeout:", e);
+        }
+      }
 
-      setStatus(`Monitoring complete. ${incidentsData.incidents.length} events logged.`);
     } catch (error) {
-      console.error("Failed to load data from backend:", error);
-      setStatus(
-        `System Error: ${
-          error instanceof Error ? error.message : "Failed to acquire feed"
-        }`,
-      );
+      console.error("Failed to start refresh:", error);
+      
+      // Check if it's a 504 timeout - be graceful about it
+      if (error instanceof Error && error.message.includes('504')) {
+        setStatus(`Refresh is running in the background. Data will update shortly.`);
+        
+        // Try to load existing data
+        try {
+          const [incidentsData, graphResult, mapResult] = await Promise.all([
+            BackendClient.getIncidents(region),
+            BackendClient.getGraph(region),
+            BackendClient.getMap(region),
+          ]);
+
+          setIncidents(incidentsData.incidents);
+          setGraphData({ nodes: graphResult.nodes, links: graphResult.links });
+        } catch (e) {
+          console.error("Failed to load existing data:", e);
+        }
+      } else {
+        setStatus(
+          `System Error: ${
+            error instanceof Error ? error.message : "Failed to acquire feed"
+          }`,
+        );
+      }
     } finally {
       setIsLoading(false);
     }

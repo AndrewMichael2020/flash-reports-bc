@@ -41,6 +41,25 @@ export interface MapResponse {
   markers: any[];
 }
 
+export interface RefreshAsyncResponse {
+  job_id: string;
+  region: string;
+  status: string;
+  message: string;
+}
+
+export interface RefreshStatusResponse {
+  job_id: string;
+  region: string;
+  status: string; // 'pending' | 'running' | 'succeeded' | 'failed'
+  new_articles: number | null;
+  total_incidents: number | null;
+  error_message: string | null;
+  created_at: string;
+  started_at: string | null;
+  completed_at: string | null;
+}
+
 /**
  * Trigger feed refresh for a specific region.
  * Calls POST /api/refresh on the backend.
@@ -129,6 +148,48 @@ export async function getMap(region: string): Promise<MapResponse> {
 
   if (!response.ok) {
     throw new Error(`Failed to get map: ${response.statusText}`);
+  }
+
+  return response.json();
+}
+
+/**
+ * Trigger asynchronous feed refresh for a specific region.
+ * Returns immediately with a job ID for polling status.
+ * Calls POST /api/refresh-async on the backend.
+ */
+export async function refreshFeedAsync(region: string): Promise<RefreshAsyncResponse> {
+  const baseUrl = normalizeBaseUrl(API_BASE_URL);
+  const response = await fetch(`${baseUrl}/api/refresh-async`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ region }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to start async refresh: ${response.statusText}`);
+  }
+
+  return response.json();
+}
+
+/**
+ * Get status of an asynchronous refresh job.
+ * Calls GET /api/refresh-status/{job_id} on the backend.
+ */
+export async function getRefreshStatus(jobId: string): Promise<RefreshStatusResponse> {
+  const baseUrl = normalizeBaseUrl(API_BASE_URL);
+  const response = await fetch(`${baseUrl}/api/refresh-status/${jobId}`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to get refresh status: ${response.statusText}`);
   }
 
   return response.json();
