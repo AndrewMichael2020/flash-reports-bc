@@ -104,13 +104,17 @@ class TestDuplicateDetection:
             raw_html="<p>Updated</p>"
         )
         
-        with patch("app.main.get_parser") as mock_get_parser:
-            mock_parser = AsyncMock()
-            mock_parser.fetch_new_articles.return_value = [mock_article]
-            mock_get_parser.return_value = mock_parser
+        # Mock sync_sources_to_db to prevent adding config sources
+        with patch("app.main.sync_sources_to_db") as mock_sync:
+            mock_sync.return_value = 0  # No sources synced
             
-            response = client.post("/api/refresh", json={"region": "Fraser Valley, BC"})
-            
+            with patch("app.main.get_parser") as mock_get_parser:
+                mock_parser = AsyncMock()
+                mock_parser.fetch_new_articles.return_value = [mock_article]
+                mock_get_parser.return_value = mock_parser
+                
+                response = client.post("/api/refresh", json={"region": "Fraser Valley, BC"})
+        
         assert response.status_code == 200
         data = response.json()
         assert data["new_articles"] == 0  # Should not add duplicate
@@ -139,29 +143,33 @@ class TestDuplicateDetection:
             raw_html="<p>New test</p>"
         )
         
-        with patch("app.main.get_parser") as mock_get_parser:
-            mock_parser = AsyncMock()
-            mock_parser.fetch_new_articles.return_value = [mock_article]
-            mock_get_parser.return_value = mock_parser
+        # Mock sync_sources_to_db to prevent adding config sources
+        with patch("app.main.sync_sources_to_db") as mock_sync:
+            mock_sync.return_value = 0
             
-            # Mock enricher
-            with patch("app.main.GeminiEnricher") as mock_enricher_class:
-                mock_enricher = AsyncMock()
-                mock_enricher.enrich_article.return_value = {
-                    "severity": "HIGH",
-                    "summary_tactical": "Test summary",
-                    "tags": ["test"],
-                    "entities": [{"name": "Test Person", "type": "person"}],
-                    "location_label": "Test Location",
-                    "lat": 49.0,
-                    "lng": -122.0,
-                    "graph_cluster_key": "test-cluster"
-                }
-                mock_enricher.model_name = "test-model"
-                mock_enricher.prompt_version = "v1"
-                mock_enricher_class.return_value = mock_enricher
+            with patch("app.main.get_parser") as mock_get_parser:
+                mock_parser = AsyncMock()
+                mock_parser.fetch_new_articles.return_value = [mock_article]
+                mock_get_parser.return_value = mock_parser
                 
-                response = client.post("/api/refresh", json={"region": "Fraser Valley, BC"})
+                # Mock enricher
+                with patch("app.main.GeminiEnricher") as mock_enricher_class:
+                    mock_enricher = AsyncMock()
+                    mock_enricher.enrich_article.return_value = {
+                        "severity": "HIGH",
+                        "summary_tactical": "Test summary",
+                        "tags": ["test"],
+                        "entities": [{"name": "Test Person", "type": "person"}],
+                        "location_label": "Test Location",
+                        "lat": 49.0,
+                        "lng": -122.0,
+                        "graph_cluster_key": "test-cluster"
+                    }
+                    mock_enricher.model_name = "test-model"
+                    mock_enricher.prompt_version = "v1"
+                    mock_enricher_class.return_value = mock_enricher
+                    
+                    response = client.post("/api/refresh", json={"region": "Fraser Valley, BC"})
         
         assert response.status_code == 200
         data = response.json()
@@ -226,29 +234,33 @@ class TestDuplicateDetection:
             )
         ]
         
-        with patch("app.main.get_parser") as mock_get_parser:
-            mock_parser = AsyncMock()
-            mock_parser.fetch_new_articles.return_value = mock_articles
-            mock_get_parser.return_value = mock_parser
+        # Mock sync_sources_to_db to prevent adding config sources
+        with patch("app.main.sync_sources_to_db") as mock_sync:
+            mock_sync.return_value = 0
             
-            # Mock enricher
-            with patch("app.main.GeminiEnricher") as mock_enricher_class:
-                mock_enricher = AsyncMock()
-                mock_enricher.enrich_article.return_value = {
-                    "severity": "MEDIUM",
-                    "summary_tactical": "Test summary",
-                    "tags": [],
-                    "entities": [],
-                    "location_label": None,
-                    "lat": None,
-                    "lng": None,
-                    "graph_cluster_key": None
-                }
-                mock_enricher.model_name = "test-model"
-                mock_enricher.prompt_version = "v1"
-                mock_enricher_class.return_value = mock_enricher
+            with patch("app.main.get_parser") as mock_get_parser:
+                mock_parser = AsyncMock()
+                mock_parser.fetch_new_articles.return_value = mock_articles
+                mock_get_parser.return_value = mock_parser
                 
-                response = client.post("/api/refresh", json={"region": "Fraser Valley, BC"})
+                # Mock enricher
+                with patch("app.main.GeminiEnricher") as mock_enricher_class:
+                    mock_enricher = AsyncMock()
+                    mock_enricher.enrich_article.return_value = {
+                        "severity": "MEDIUM",
+                        "summary_tactical": "Test summary",
+                        "tags": [],
+                        "entities": [],
+                        "location_label": None,
+                        "lat": None,
+                        "lng": None,
+                        "graph_cluster_key": None
+                    }
+                    mock_enricher.model_name = "test-model"
+                    mock_enricher.prompt_version = "v1"
+                    mock_enricher_class.return_value = mock_enricher
+                    
+                    response = client.post("/api/refresh", json={"region": "Fraser Valley, BC"})
         
         assert response.status_code == 200
         data = response.json()
@@ -337,20 +349,24 @@ class TestEnrichmentFlow:
             raw_html="<p>This article body will be used as fallback summary when enrichment fails.</p>"
         )
         
-        with patch("app.main.get_parser") as mock_get_parser:
-            mock_parser = AsyncMock()
-            mock_parser.fetch_new_articles.return_value = [mock_article]
-            mock_get_parser.return_value = mock_parser
+        # Mock sync_sources_to_db to prevent adding config sources
+        with patch("app.main.sync_sources_to_db") as mock_sync:
+            mock_sync.return_value = 0
             
-            # Mock enricher to raise exception
-            with patch("app.main.GeminiEnricher") as mock_enricher_class:
-                mock_enricher = AsyncMock()
-                mock_enricher.enrich_article.side_effect = Exception("API Error")
-                mock_enricher.model_name = "gemini-flash"
-                mock_enricher.prompt_version = "v2.0"
-                mock_enricher_class.return_value = mock_enricher
+            with patch("app.main.get_parser") as mock_get_parser:
+                mock_parser = AsyncMock()
+                mock_parser.fetch_new_articles.return_value = [mock_article]
+                mock_get_parser.return_value = mock_parser
                 
-                response = client.post("/api/refresh", json={"region": "Fraser Valley, BC"})
+                # Mock enricher to raise exception
+                with patch("app.main.GeminiEnricher") as mock_enricher_class:
+                    mock_enricher = AsyncMock()
+                    mock_enricher.enrich_article.side_effect = Exception("API Error")
+                    mock_enricher.model_name = "gemini-flash"
+                    mock_enricher.prompt_version = "v2.0"
+                    mock_enricher_class.return_value = mock_enricher
+                    
+                    response = client.post("/api/refresh", json={"region": "Fraser Valley, BC"})
         
         assert response.status_code == 200
         data = response.json()

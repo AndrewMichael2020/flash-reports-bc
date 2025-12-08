@@ -79,3 +79,22 @@ class IncidentEnriched(Base):
 
     # New optional field: when the incident actually occurred (if known)
     incident_occurred_at = Column(DateTime(timezone=True), nullable=True)
+
+
+class RefreshJob(Base):
+    """
+    Tracks asynchronous refresh jobs for regions.
+    Used by /api/refresh-async and /api/refresh-status endpoints.
+    """
+    __tablename__ = "refresh_jobs"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    job_id = Column(String(36), nullable=False, unique=True, index=True)  # UUID
+    region = Column(Text, nullable=False)
+    status = Column(Text, nullable=False)  # 'pending' | 'running' | 'succeeded' | 'failed'
+    new_articles = Column(Integer, nullable=True)
+    total_incidents = Column(Integer, nullable=True)
+    error_message = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    started_at = Column(DateTime(timezone=True), nullable=True)
+    completed_at = Column(DateTime(timezone=True), nullable=True)

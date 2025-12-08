@@ -11,8 +11,9 @@ if repo_root not in sys.path:
 
 import asyncio
 import re
+import uuid
 from urllib.parse import urlparse
-from fastapi import FastAPI, Depends, HTTPException, Query, Request
+from fastapi import FastAPI, Depends, HTTPException, Query, Request, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from typing import Optional, List
@@ -21,9 +22,10 @@ from starlette.responses import Response
 from fastapi.responses import JSONResponse, HTMLResponse
 
 from app.db import get_db, engine, Base
-from app.models import Source, ArticleRaw, IncidentEnriched
+from app.models import Source, ArticleRaw, IncidentEnriched, RefreshJob
 from app.schemas import (
     RefreshRequest, RefreshResponse,
+    RefreshAsyncRequest, RefreshAsyncResponse, RefreshStatusResponse,
     IncidentsResponse, IncidentResponse,
     CoordinatesSchema, GraphResponse, GraphNode, GraphLink,
     MapResponse, MapMarker
@@ -223,19 +225,24 @@ async def root():
     }
 
 
-@app.post("/api/refresh", response_model=RefreshResponse)
-async def refresh_feed(
-    request: RefreshRequest,
-    db: Session = Depends(get_db)
-):
+async def perform_refresh_for_region(region: str, db: Session) -> RefreshResponse:
     """
-    Trigger ingestion for a specific region.
+    Core refresh logic extracted for reuse by both sync and async endpoints.
     
     Fetches new articles from all active sources in the region,
     enriches with Gemini Flash, and returns counts.
+    
+    Args:
+        region: Region label to refresh
+        db: Database session
+        
+    Returns:
+        RefreshResponse with new_articles and total_incidents counts
+        
+    Raises:
+        HTTPException: If no active sources found for region
     """
-    region = request.region
-    logger.info(f"Refresh requested for region: {region}")
+    logger.info(f"Performing refresh for region: {region}")
     
     # Sync the configured sources to DB when refresh is explicitly invoked
     try:
@@ -259,7 +266,7 @@ async def refresh_feed(
         )
     
     logger.info(f"Found {len(sources)} active sources for {region}")
-    # NEW: log the list of sources actually being processed for this refresh
+    # Log the list of sources actually being processed for this refresh
     logger.debug(
         "Active sources for region %s: %s",
         region,
@@ -334,15 +341,6 @@ async def refresh_feed(
             if not article.url or not (article.url.startswith("http://") or article.url.startswith("https://")):
                 logger.debug(f"Skipping non-HTTP URL for article: {article.url}")
                 continue
-
-            # REMOVE: additional URL heuristic (_is_valid_article_url) — let parsers decide.
-            # is_valid = _is_valid_article_url(source, article.url)
-            # if not is_valid:
-            #     logger.debug(
-            #         f"Skipping URL not considered a valid article for "
-            #         f"source={source.agency_name}: {article.url} (base={source.base_url})"
-            #     )
-            #     continue
 
             # Check if article already exists
             existing = db.query(ArticleRaw).filter(
@@ -444,6 +442,183 @@ async def refresh_feed(
         region=region,
         new_articles=new_articles_count,
         total_incidents=total_incidents
+    )
+
+
+@app.post("/api/refresh", response_model=RefreshResponse)
+async def refresh_feed(
+    request: RefreshRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Synchronous refresh endpoint for a specific region.
+    
+    Fetches new articles from all active sources in the region,
+    enriches with Gemini Flash, and returns counts.
+    
+    Note: This endpoint may timeout for long-running refreshes.
+    Consider using /api/refresh-async for better reliability.
+    """
+    return await perform_refresh_for_region(request.region, db)
+
+
+async def background_refresh_task(job_id: str, region: str):
+    """
+    Background task to perform refresh asynchronously.
+    Updates job status in database as it progresses.
+    
+    Args:
+        job_id: UUID of the refresh job
+        region: Region to refresh
+    """
+    # Get a new database session for this background task
+    db_gen = get_db()
+    db = next(db_gen)
+    
+    try:
+        # Give the parent transaction time to commit
+        # Note: asyncio is imported at module level
+        await asyncio.sleep(0.1)
+        
+        # Refresh the session to see any committed changes
+        db.expire_all()
+        
+        # Update job status to running
+        job = db.query(RefreshJob).filter(RefreshJob.job_id == job_id).first()
+        if not job:
+            logger.error(f"Background refresh task: Job {job_id} not found in database")
+            # Log all jobs for debugging
+            all_jobs = db.query(RefreshJob).all()
+            logger.error(f"All jobs in DB: {[j.job_id for j in all_jobs]}")
+            return
+        
+        job.status = "running"
+        job.started_at = datetime.now(timezone.utc)
+        db.commit()
+        logger.info(f"Background refresh started for job {job_id}, region {region}")
+        
+        # Perform the actual refresh
+        try:
+            result = await perform_refresh_for_region(region, db)
+            
+            # Update job as succeeded
+            job.status = "succeeded"
+            job.new_articles = result.new_articles
+            job.total_incidents = result.total_incidents
+            job.completed_at = datetime.now(timezone.utc)
+            db.commit()
+            logger.info(f"Background refresh succeeded for job {job_id}: {result.new_articles} new articles")
+            
+        except HTTPException as e:
+            # Handle known exceptions (like no sources found)
+            job.status = "failed"
+            job.error_message = str(e.detail)
+            job.completed_at = datetime.now(timezone.utc)
+            db.commit()
+            logger.error(f"Background refresh failed for job {job_id}: {e.detail}")
+            
+        except Exception as e:
+            # Handle unexpected errors
+            job.status = "failed"
+            job.error_message = str(e)
+            job.completed_at = datetime.now(timezone.utc)
+            db.commit()
+            logger.error(f"Background refresh failed for job {job_id}: {e}", exc_info=True)
+            
+    except Exception as e:
+        logger.error(f"Critical error in background refresh task for job {job_id}: {e}", exc_info=True)
+    finally:
+        db.close()
+
+
+@app.post("/api/refresh-async", response_model=RefreshAsyncResponse)
+async def refresh_feed_async(
+    request: RefreshAsyncRequest,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db)
+):
+    """
+    Trigger asynchronous refresh for a specific region.
+    
+    Returns immediately with a job ID that can be used to poll status.
+    The actual refresh happens in the background.
+    
+    Args:
+        request: Request containing region to refresh
+        background_tasks: FastAPI background tasks
+        db: Database session
+        
+    Returns:
+        RefreshAsyncResponse with job_id for status polling
+    """
+    region = request.region
+    job_id = str(uuid.uuid4())
+    
+    logger.info(f"Async refresh requested for region: {region}, job_id: {job_id}")
+    
+    # Create job record
+    job = RefreshJob(
+        job_id=job_id,
+        region=region,
+        status="pending",
+        created_at=datetime.now(timezone.utc)
+    )
+    db.add(job)
+    db.flush()  # Ensure job gets an ID before commit
+    db.commit()
+    db.refresh(job)  # Refresh to ensure we have the latest state
+    
+    logger.info(f"Job {job_id} committed to database with status: {job.status}")
+    
+    # Schedule background task
+    background_tasks.add_task(background_refresh_task, job_id, region)
+    
+    logger.info(f"Created async refresh job {job_id} for region {region}")
+    
+    return RefreshAsyncResponse(
+        job_id=job_id,
+        region=region,
+        status="pending",
+        message=f"Refresh job started for {region}. Poll /api/refresh-status/{job_id} for status."
+    )
+
+
+@app.get("/api/refresh-status/{job_id}", response_model=RefreshStatusResponse)
+async def get_refresh_status(
+    job_id: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Get status of an asynchronous refresh job.
+    
+    Args:
+        job_id: UUID of the refresh job
+        db: Database session
+        
+    Returns:
+        RefreshStatusResponse with current job status and results
+        
+    Raises:
+        HTTPException: If job not found
+    """
+    job = db.query(RefreshJob).filter(RefreshJob.job_id == job_id).first()
+    
+    if not job:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Refresh job {job_id} not found"
+        )
+    
+    return RefreshStatusResponse(
+        job_id=job.job_id,
+        region=job.region,
+        status=job.status,
+        new_articles=job.new_articles,
+        total_incidents=job.total_incidents,
+        error_message=job.error_message,
+        created_at=job.created_at.isoformat(),
+        started_at=job.started_at.isoformat() if job.started_at else None,
+        completed_at=job.completed_at.isoformat() if job.completed_at else None
     )
 
 
