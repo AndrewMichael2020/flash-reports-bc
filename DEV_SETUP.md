@@ -60,7 +60,7 @@ pip install -r requirements.txt -q
 # Run database migrations
 alembic upgrade head
 
-# Start the backend server
+# Start the backend server (CLI-friendly)
 ENV=dev uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
@@ -121,6 +121,54 @@ Expected output:
   ✓ PASS - Status: 200
 Results: 3 passed, 0 failed
 ```
+
+---
+
+## Quick CLI Reference
+
+These are the minimal commands you typically need during development.
+
+### Backend
+
+```bash
+# from repo root
+cd backend
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+alembic upgrade head
+
+# run API (FastAPI/uvicorn)
+ENV=dev uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
+
+### Frontend
+
+```bash
+# from repo root
+npm install
+npm run dev -- --host 0.0.0.0 --port 3000
+```
+
+### RCMP JSON Loader (CLI ingestion helper)
+
+You can ingest RCMP articles directly from the command line without going through the HTTP API:
+
+```bash
+cd backend
+source venv/bin/activate
+
+# Use an existing source ID (from the 'sources' table)
+python tools/load_rcmp_json.py --source-id 1 --confirm
+
+# Or create a source on the fly from a base URL
+python tools/load_rcmp_json.py --base-url "https://rcmp.ca/en/bc/langley/news" --create-source --confirm
+
+# To test with a saved JSON sample instead of live scraping:
+python tools/load_rcmp_json.py --source-id 1 --json-file ./samples/langley_sample.json --confirm
+```
+
+`--confirm` is required when `ENV` is not `dev`, to avoid accidental writes in non‑dev environments.
 
 ---
 
