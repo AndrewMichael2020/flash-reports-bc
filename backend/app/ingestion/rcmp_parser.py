@@ -13,6 +13,7 @@ import json
 import re
 import hashlib
 import asyncio
+import logging
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from urllib.parse import urljoin
@@ -20,6 +21,13 @@ from bs4 import BeautifulSoup
 from dateutil import parser as date_parser
 
 from app.ingestion.parser_base import SourceParser, RawArticle
+from app.ingestion.parser_utils import (
+    retry_with_backoff, RetryConfig,
+    parse_flexible_date, extract_main_content, clean_html_text
+)
+
+# Set up logger
+logger = logging.getLogger(__name__)
 
 # Optional Playwright import; we'll fail gracefully and raise helpful error if used without playwright installed
 try:
@@ -63,7 +71,7 @@ class RCMPParser(SourceParser):
                 return self._to_raw_article_list(items, since)
             except Exception as e:
                 # Continue to playwright if sample file not parsable
-                print(f"RCMPParser: failed loading sample JSON '{RCMP_TEST_JSON}': {e}")
+                logger.warning(f"Failed loading sample JSON '{RCMP_TEST_JSON}': {e}")
 
         # If Playwright is not available, raise early to help debug misconfigured environments
         if self.use_playwright and not PLAYWRIGHT_AVAILABLE:
@@ -108,12 +116,9 @@ class RCMPParser(SourceParser):
         """
         raw_articles = []
         for item in items[:RCMP_MAX_ARTICLES]:
-            published_at = None
-            if item.get('date_str'):
-                try:
-                    published_at = date_parser.parse(item['date_str'])
-                except Exception:
-                    published_at = None
+            # Use shared date parsing utility
+            published_at = parse_flexible_date(item.get('date_str', ''))
+            
             # If we have since and the article is older or equal, skip it
             if since and published_at and published_at <= since:
                 continue
@@ -143,23 +148,30 @@ class RCMPParser(SourceParser):
                 article_meta = await self._parse_listing_page(page, listing_url)
                 article_meta = article_meta[:RCMP_MAX_ARTICLES]
                 for meta in article_meta:
-                    # parse the article page content
-                    body, raw_html = await self._parse_article_page(page, meta['url'])
-                    if not body or len(body) < 50:
+                    # parse the article page content with retry logic
+                    try:
+                        async def fetch_article():
+                            return await self._parse_article_page(page, meta['url'])
+                        
+                        config = RetryConfig(max_retries=2, initial_delay=1.0)
+                        body, raw_html = await retry_with_backoff(fetch_article, config)
+                        
+                        if not body or len(body) < 50:
+                            continue
+                        meta['body'] = body
+                        meta['raw_html'] = raw_html[:10000] if raw_html else None
+                        
+                        # Use shared date parsing utility
+                        published_at = parse_flexible_date(meta.get('date_str', ''))
+                        
+                        if since and published_at and published_at <= since:
+                            continue
+                        results.append(meta)
+                        await asyncio.sleep(0.5)
+                    except Exception as e:
+                        # Skip articles that fail after retries
+                        logger.warning(f"Failed to fetch article {meta['url']}: {e}")
                         continue
-                    meta['body'] = body
-                    meta['raw_html'] = raw_html[:10000] if raw_html else None
-                    # apply 'since' filter
-                    published_at = None
-                    if meta.get('date_str'):
-                        try:
-                            published_at = date_parser.parse(meta['date_str'])
-                        except Exception:
-                            published_at = None
-                    if since and published_at and published_at <= since:
-                        continue
-                    results.append(meta)
-                    await asyncio.sleep(0.5)
             finally:
                 await browser.close()
 
@@ -355,27 +367,17 @@ class RCMPParser(SourceParser):
     def _extract_article_content(self, soup: BeautifulSoup) -> str:
         """
         Extract main article text content from an article page soup.
+        Uses shared content extraction utility for consistency.
         """
-        for unwanted in soup(['script', 'style', 'nav', 'header', 'footer', 'aside', 'form', 'iframe', 'button']):
-            unwanted.decompose()
-        text = None
-        article_elem = soup.find('article')
-        if article_elem:
-            text = article_elem.get_text(separator='\n', strip=True)
-        if not text or len(text) < 200:
-            main_elem = soup.find('main') or soup.find(id='main') or soup.find(class_=lambda x: x and 'main' in str(x).lower())
-            if main_elem:
-                text = main_elem.get_text(separator='\n', strip=True)
-        if not text or len(text) < 200:
-            content_elem = soup.find(class_=lambda x: x and ('content' in str(x).lower() or 'article' in str(x).lower()))
-            if content_elem:
-                text = content_elem.get_text(separator='\n', strip=True)
-        if not text or len(text) < 200:
-            body_elem = soup.find('body')
-            if body_elem:
-                text = body_elem.get_text(separator='\n', strip=True)
-        if text:
-            text = re.sub(r'\n\s*\n+', '\n\n', text)
-            text = re.sub(r' +', ' ', text)
-            return text.strip()
-        return ""
+        # Use shared utility with RCMP-specific selectors
+        selectors = [
+            'article',
+            'main',
+            '#main',
+            '.content',
+            '.main-content',
+            '.article-content',
+            'body'
+        ]
+        
+        return extract_main_content(soup, selectors)
