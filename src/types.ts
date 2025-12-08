@@ -19,15 +19,24 @@ export enum SourceType {
 export interface Incident {
   id: string;
   timestamp: string;
+  // Optional: when the incident actually occurred, if backend knows it
+  incidentOccurredAt?: string | null;
   source: SourceType;
   location: string;
-  coordinates: { lat: number; lng: number }; // Added coordinates
+  coordinates: { lat: number; lng: number };
   summary: string;
   fullText: string;
   severity: Severity;
-  tags: string[]; // e.g., "Assassination", "Gang", "Theft"
-  entities: string[]; // Detected gangs, persons of interest
+  tags: string[];
+  entities: string[];
   relatedIncidentIds: string[];
+  // Link back to original newsroom article (to be mapped from backend later)
+  sourceUrl?: string;
+  // Enriched citizen-facing fields
+  crimeCategory?: string | null;
+  temporalContext?: string | null;
+  weaponInvolved?: string | null;
+  tacticalAdvice?: string | null;
 }
 
 export interface GraphNode extends SimulationNodeDatum {

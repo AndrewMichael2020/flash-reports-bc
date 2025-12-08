@@ -1,79 +1,80 @@
 import React from 'react';
-import { Incident, Severity } from '../types';
+import { Incident, GraphNode, Severity } from '../types';
 
 interface Props {
   incidents: Incident[];
-  graphNodes: any[];
+  graphNodes: GraphNode[];
 }
 
-const MetricsHUD: React.FC<Props> = ({ incidents, graphNodes }) => {
-  
-  // 1. Calculate Threat Condition
-  const calculateThreatLevel = () => {
-    if (incidents.length === 0) return { level: 'STABLE', color: 'text-emerald-500', bg: 'bg-emerald-500/10 border-emerald-500/30' };
-    
-    const score = incidents.reduce((acc, curr) => {
-      if (curr.severity === Severity.CRITICAL) return acc + 3;
-      if (curr.severity === Severity.HIGH) return acc + 2;
-      return acc + 1;
-    }, 0);
+function computeThreatCondition(incidents: Incident[]): 'NORMAL' | 'ELEVATED' | 'SEVERE' {
+  let critical = 0;
+  let high = 0;
+  let medium = 0;
 
-    const avg = score / incidents.length;
+  for (const inc of incidents) {
+    if (inc.severity === Severity.CRITICAL) critical += 1;
+    else if (inc.severity === Severity.HIGH) high += 1;
+    else if (inc.severity === Severity.MEDIUM) medium += 1;
+  }
 
-    if (avg > 2.2) return { level: 'SEVERE', color: 'text-red-500', bg: 'bg-red-500/10 border-red-500/30' };
-    if (avg > 1.5) return { level: 'ELEVATED', color: 'text-orange-500', bg: 'bg-orange-500/10 border-orange-500/30' };
-    return { level: 'GUARDED', color: 'text-blue-500', bg: 'bg-blue-500/10 border-blue-500/30' };
-  };
+  if (critical >= 1 || high >= 3) return 'SEVERE';
+  if (high >= 1 || medium >= 5) return 'ELEVATED';
+  return 'NORMAL';
+}
 
-  // 2. Count Active Factions (Groups in graph)
-  const activeFactions = graphNodes.filter(n => n.type === 'group').length;
+function computePrimaryHeatSource(incidents: Incident[]): string {
+  if (incidents.length === 0) return 'N/A';
+  const counts = new Map<string, number>();
+  for (const inc of incidents) {
+    counts.set(inc.source, (counts.get(inc.source) || 0) + 1);
+  }
+  const sorted = Array.from(counts.entries()).sort((a, b) => b[1] - a[1]);
+  return sorted[0]?.[0] ?? 'N/A';
+}
 
-  // 3. Most Volatile Source
-  const getVolatilitySource = () => {
-    const counts: Record<string, number> = {};
-    incidents.forEach(i => {
-      counts[i.source] = (counts[i.source] || 0) + (i.severity === Severity.CRITICAL ? 3 : 1);
-    });
-    const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
-    return sorted.length > 0 ? sorted[0][0] : 'None';
-  };
-
-  const threat = calculateThreatLevel();
+const MetricsHUD: React.FC<Props> = ({ incidents }) => {
+  const total = incidents.length;
+  const criticalCount = incidents.filter(i => i.severity === Severity.CRITICAL).length;
+  const threat = computeThreatCondition(incidents);
+  const primarySource = computePrimaryHeatSource(incidents);
 
   return (
-    <div className="grid grid-cols-4 gap-4 mb-4">
-      {/* Threat Level */}
-      <div className={`flex flex-col p-3 rounded border ${threat.bg}`}>
-        <span className="text-[10px] uppercase tracking-widest opacity-70">Threat Condition</span>
-        <div className={`text-2xl font-black ${threat.color} tracking-tighter`}>
-          {threat.level}
+    <div className="grid grid-cols-4 gap-3 text-xs">
+      {/* Threat Condition */}
+      <div className="bg-slate-900/80 border border-slate-700 rounded p-3 flex flex-col gap-1">
+        <div className="text-[10px] uppercase tracking-wide text-slate-500">Threat Condition</div>
+        <div
+          className={`text-sm font-bold ${
+            threat === 'SEVERE'
+              ? 'text-red-400'
+              : threat === 'ELEVATED'
+              ? 'text-yellow-300'
+              : 'text-emerald-400'
+          }`}
+        >
+          {threat}
         </div>
       </div>
 
-      {/* Active Groups */}
-      <div className="flex flex-col p-3 rounded border border-slate-800 bg-slate-900/50">
-        <span className="text-[10px] uppercase tracking-widest text-slate-500">Active Factions</span>
-        <div className="text-2xl font-mono text-slate-200">
-          {activeFactions} <span className="text-xs text-slate-500 align-middle">ID'D</span>
+      {/* Critical Events */}
+      <div className="bg-slate-900/80 border border-slate-700 rounded p-3 flex flex-col gap-1">
+        <div className="text-[10px] uppercase tracking-wide text-slate-500">Critical Events</div>
+        <div className="text-sm font-bold text-slate-100">
+          {criticalCount} <span className="text-slate-500 text-[11px]">/ {total} Total</span>
         </div>
       </div>
 
-      {/* Volatile Sector */}
-      <div className="flex flex-col p-3 rounded border border-slate-800 bg-slate-900/50">
-        <span className="text-[10px] uppercase tracking-widest text-slate-500">Primary Heat Source</span>
-        <div className="text-lg font-bold text-slate-200 truncate mt-1">
-          {getVolatilitySource()}
-        </div>
+      {/* Primary Heat Source */}
+      <div className="bg-slate-900/80 border border-slate-700 rounded p-3 flex flex-col gap-1">
+        <div className="text-[10px] uppercase tracking-wide text-slate-500">Primary Heat Source</div>
+        <div className="text-sm font-bold text-slate-100">{primarySource}</div>
       </div>
 
-      {/* Critical Incidents Count */}
-      <div className="flex flex-col p-3 rounded border border-slate-800 bg-slate-900/50">
-        <span className="text-[10px] uppercase tracking-widest text-slate-500">Critical Events</span>
-        <div className="flex items-baseline gap-2">
-          <span className="text-2xl font-mono text-white">
-            {incidents.filter(i => i.severity === Severity.CRITICAL).length}
-          </span>
-          <span className="text-xs text-slate-500">/ {incidents.length} Total</span>
+      {/* Reserved metric (can be used later, keep factual) */}
+      <div className="bg-slate-900/80 border border-slate-700 rounded p-3 flex flex-col gap-1">
+        <div className="text-[10px] uppercase tracking-wide text-slate-500">Signals</div>
+        <div className="text-sm font-bold text-slate-100">
+          {total > 0 ? `${total} active reports` : 'No recent reports'}
         </div>
       </div>
     </div>

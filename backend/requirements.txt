@@ -23,6 +23,20 @@ pyyaml==6.0.2
 google-genai==0.2.2
 
 # Playwright for robust scraping of dynamic pages (RCMP parser)
+# NOTE: On Linux dev containers you must also install system deps, e.g.:
+#   sudo apt-get update && sudo apt-get install -y \
+#       libatk1.0-0t64 \
+#       libatk-bridge2.0-0t64 \
+#       libcups2t64 \
+#       libxkbcommon0 \
+#       libatspi2.0-0t64 \
+#       libxcomposite1 \
+#       libxdamage1 \
+#       libxfixes3 \
+#       libxrandr2 \
+#       libgbm1 \
+#       libasound2t64
+# or run: sudo playwright install-deps
 playwright
 
 # Testing

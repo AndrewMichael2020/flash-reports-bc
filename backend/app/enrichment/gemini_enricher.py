@@ -7,6 +7,7 @@ import json
 from typing import Optional, Dict, Any
 from google import genai
 from google.genai import types
+import asyncio
 
 import yaml
 from pathlib import Path
@@ -64,8 +65,61 @@ class GeminiEnricher:
         
         self.model_name: str = cfg.get("model_name", "gemini-1.5-flash")
         self.prompt_version: str = cfg.get("prompt_version", "v1.0")
-        logger.info(f"GeminiEnricher configured: model_name={self.model_name}, prompt_version={self.prompt_version}")
+        logger.info(
+            "GeminiEnricher configured: model_name=%s, prompt_version=%s",
+            self.model_name,
+            self.prompt_version,
+        )
     
+    def _filter_entities(self, entities: Any) -> Any:
+        """
+        Remove obvious official names (ranks/titles) from entities, e.g.
+        'Sergeant X', 'Constable Y', 'Inspector Z', etc.
+        We keep organizations, locations, gangs, etc.
+        """
+        if not entities:
+            return []
+
+        filtered = []
+        rank_keywords = [
+            "sergeant",
+            "sgt",
+            "constable",
+            "cst",
+            "inspector",
+            "insp",
+            "corporal",
+            "cpl",
+            "chief",
+            "deputy chief",
+            "superintendent",
+            "staff sergeant",
+            "s/sgt",
+            "officer",
+        ]
+
+        for ent in entities:
+            # If model returned plain strings, keep them (we don't know what they are).
+            if not isinstance(ent, dict):
+                name = str(ent).strip().lower()
+                if any(name.startswith(rk + " ") for rk in rank_keywords):
+                    continue
+                filtered.append(ent)
+                continue
+
+            etype = (ent.get("type") or "").lower()
+            name = (ent.get("name") or "").strip()
+            lname = name.lower()
+
+            # If explicitly tagged as 'Person' and starts with a rank, drop it
+            if etype in ("person", "officer"):
+                if any(lname.startswith(rk + " ") for rk in rank_keywords):
+                    continue
+
+            filtered.append(ent)
+
+        return filtered
+
     async def enrich_article(
         self,
         title: str,
@@ -76,25 +130,20 @@ class GeminiEnricher:
     ) -> Dict[str, Any]:
         """
         Enrich a single article with structured intelligence.
-        
-        Returns dict with keys:
-        - severity: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL"
-        - summary_tactical: str
-        - tags: list[str]
-        - entities: list[dict]
-        - location_label: str | None
-        - lat: float | None
-        - lng: float | None
-        - graph_cluster_key: str | None
-        - crime_category: str (default "Unknown")
-        - temporal_context: str | None
-        - weapon_involved: str | None
-        - tactical_advice: str | None
         """
         
         prompt = f"""
 You are a tactical analyst for police intelligence working with official police / RCMP news releases.
 Your goal is to extract factual, citizen-focused metadata from incident reports.
+
+STRICT ENTITY RULE:
+- Extract ONLY non-person entities:
+  - Criminal organizations / gangs / crews
+  - Police agencies and units (e.g. "Langley RCMP", "Abbotsford Police Department")
+  - Locations / neighbourhoods / landmarks
+- DO NOT include named individuals or officials as entities:
+  - Do NOT return police officers, mayors, spokespeople, witnesses, victims, or suspects by name
+  - Example to EXCLUDE: "Sergeant Zynal Sharoom", "Constable Smith", "Mayor Doe"
 
 Article Details:
 - Agency: {agency}
@@ -114,25 +163,26 @@ Tasks (STRICT):
 
 2. Summary: A brief tactical summary (1-2 sentences) for law enforcement.
 
-3. Tags: short category labels (e.g. ["Gang Activity","Trafficking","Shooting"]).
+3. Tags: short category labels (e.g. ["Traffic", "Collision", "Drug Trafficking"]).
 
-4. Entities: structured objects with type + name (e.g. gang, person, location).
+4. Entities: structured objects with type + name.
+   - Use types like: "Gang", "Organization", "Agency", "Location"
+   - DO NOT include any "Person" entities or named officials.
 
 5. Location: a human-readable label plus approximate latitude/longitude if inferable.
 
 6. Graph cluster key: a short string used to group related incidents (e.g. "Surrey_dial_a_dope_war").
 
 7. Crime Category: A citizen-friendly category. Choose from:
-   - "Violent Crime" (assault, homicide, shooting, stabbing, domestic violence)
-   - "Property Crime" (theft, break-in, robbery, fraud, vandalism)
-   - "Traffic Incident" (collision, DUI, dangerous driving)
-   - "Drug Offense" (possession, trafficking, production)
-   - "Sexual Offense" (assault, exploitation)
-   - "Cybercrime" (fraud, identity theft, online exploitation)
-   - "Public Safety" (missing person, suspicious activity, public disturbance)
-   - "Other" (doesn't fit above categories)
-   - "Unknown" (insufficient information to categorize)
-   Return "Unknown" if unsure.
+   - "Violent Crime"
+   - "Property Crime"
+   - "Traffic Incident"
+   - "Drug Offense"
+   - "Sexual Offense"
+   - "Cybercrime"
+   - "Public Safety"
+   - "Other"
+   - "Unknown"
 
 8. Temporal Context: When the incident occurred in human terms (e.g. "Early morning hours", "During rush hour", "Late night"). Return null if not specified.
 
@@ -146,9 +196,9 @@ Return ONLY a single JSON object with this exact shape:
   "summary_tactical": "string",
   "tags": ["string", ...],
   "entities": [
-    {{"type": "Gang", "name": "UN Gang"}},
-    {{"type": "Person", "name": "John Doe"}},
-    {{"type": "Location", "name": "Whalley"}}
+    {{"type": "Organization", "name": "Langley RCMP"}},
+    {{"type": "Agency", "name": "Abbotsford Police Department"}},
+    {{"type": "Location", "name": "264 Street and 0 Avenue, Langley"}}
   ],
   "location_label": "string or null",
   "lat": 49.123 or null,
@@ -162,7 +212,16 @@ Return ONLY a single JSON object with this exact shape:
 """
 
         try:
-            response = await self.client.models.generate_content_async(
+            logger.debug(
+                "Calling Gemini model=%s prompt_version=%s for title='%s...'",
+                self.model_name,
+                self.prompt_version,
+                (title or "")[:40],
+            )
+
+            # Run the blocking SDK call in a worker thread (no generate_content_async in this SDK)
+            response = await asyncio.to_thread(
+                self.client.models.generate_content,
                 model=self.model_name,
                 contents=prompt,
                 config=types.GenerateContentConfig(
@@ -170,33 +229,64 @@ Return ONLY a single JSON object with this exact shape:
                 ),
             )
 
-            # Parse JSON response
-            result = json.loads(response.text or "{}")
+            # Prefer response.text, but fall back to candidate text if needed
+            raw_text = getattr(response, "text", None)
+            if not raw_text and getattr(response, "candidates", None):
+                try:
+                    first = response.candidates[0]
+                    parts = getattr(first, "content", getattr(first, "parts", None))
+                    if hasattr(parts, "parts"):
+                        parts = parts.parts
+                    if parts:
+                        raw_text = getattr(parts[0], "text", None)
+                except Exception as parse_fallback_err:
+                    logger.warning("Failed to extract text from candidates: %s", parse_fallback_err)
+
+            if not raw_text:
+                raise ValueError("Gemini response did not contain text to parse as JSON")
+
+            try:
+                result = json.loads(raw_text)
+            except json.JSONDecodeError as je:
+                logger.error(
+                    "Failed to parse Gemini JSON for title='%s...': %s | raw: %s",
+                    (title or "")[:40],
+                    je,
+                    raw_text[:500],
+                )
+                raise
 
             # Validate required fields
             required_fields = ["severity", "summary_tactical", "tags", "entities"]
             for field in required_fields:
                 if field not in result:
-                    raise ValueError(f"Missing required field: {field}")
-            
+                    raise ValueError(f"Missing required field in Gemini result: {field}")
+
+            # Apply entity filtering
+            raw_entities = result.get("entities") or []
+            filtered_entities = self._filter_entities(raw_entities)
+
             return {
                 "severity": result.get("severity", "MEDIUM"),
                 "summary_tactical": result.get("summary_tactical", title[:150] if title else ""),
                 "tags": result.get("tags") or [],
-                "entities": result.get("entities") or [],
+                "entities": filtered_entities,
                 "location_label": result.get("location_label"),
                 "lat": result.get("lat"),
                 "lng": result.get("lng"),
                 "graph_cluster_key": result.get("graph_cluster_key"),
-                # New citizen-facing fields with safe defaults
                 "crime_category": result.get("crime_category") or "Unknown",
                 "temporal_context": result.get("temporal_context"),
                 "weapon_involved": result.get("weapon_involved"),
                 "tactical_advice": result.get("tactical_advice"),
             }
-            
+
         except Exception as e:
-            logger.error(f"Enrichment failed for title='{title[:80]}...': {e}")
+            logger.error(
+                "Enrichment failed for title='%s...': %s",
+                (title or "")[:80],
+                e,
+            )
             # Return minimal valid enrichment
             return {
                 "severity": "MEDIUM",

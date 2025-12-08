@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import Optional, List
 import hashlib
 import re
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 
 from app.ingestion.parser_base import SourceParser, RawArticle
 from app.ingestion.parser_utils import (
@@ -74,7 +74,63 @@ class MunicipalListParser(SourceParser):
         Returns list of dicts with url, title, published_at.
         """
         items = []
-        
+
+        parsed_base = urlparse(base_url)
+        host = (parsed_base.netloc or "").lower()
+
+        # Helper: Surrey-specific static-page filter
+        def is_surrey_static(title: str, href: str) -> bool:
+            """
+            Filter out known Surrey Police Service non-incident pages:
+            Make a Report, When To Call Police, Community Programs, etc.
+            """
+            if "surreypolice.ca" not in host:
+                return False
+
+            t = (title or "").strip().lower()
+            h = (href or "").strip().lower()
+
+            # Title-based heuristics (from your feed)
+            static_title_keywords = [
+                "make a report",
+                "when to call police",
+                "community programs",
+                "block watch",
+                "community input",
+                "community 1st",
+                "community 1st.",  # in case of punctuation
+                "community first",
+                "youth services",
+                "civilian oversight",
+                "filing a complaint",
+                "body-worn cameras",
+                "body worn cameras",
+                "procurement and bids",
+                "information and privacy",
+                "remotely piloted aircraft",
+            ]
+            if any(kw in t for kw in static_title_keywords):
+                return True
+
+            # URL slug-based heuristics
+            static_slug_keywords = [
+                "make-a-report",
+                "when-to-call-police",
+                "community-programs",
+                "block-watch",
+                "community-input",
+                "community-1st",
+                "community-first",
+                "youth-services",
+                "civilian-oversight",
+                "filing-a-complaint",
+                "body-worn-cameras",
+                "procurement-and-bids",
+                "information-and-privacy",
+                "remotely-piloted-aircraft",
+            ]
+            return any(kw in h for kw in static_slug_keywords)
+
         # Look for common patterns in municipal sites
         # Try card-style layouts first
         cards = soup.find_all(['div', 'article', 'li'], class_=lambda c: c and (
@@ -115,6 +171,11 @@ class MunicipalListParser(SourceParser):
             
             # Skip if it looks like a navigation link
             if any(word in title.lower() for word in ['home', 'about', 'contact', 'menu', 'search']):
+                continue
+
+            # Surrey-specific: drop known static / program pages
+            if is_surrey_static(title, href):
+                logger.debug("MunicipalListParser: dropping Surrey static page title=%r href=%r", title, href)
                 continue
             
             # Build full URL

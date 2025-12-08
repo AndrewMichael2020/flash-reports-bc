@@ -76,3 +76,6 @@ class IncidentEnriched(Base):
     temporal_context = Column(Text, nullable=True)
     weapon_involved = Column(Text, nullable=True)
     tactical_advice = Column(Text, nullable=True)
+
+    # New optional field: when the incident actually occurred (if known)
+    incident_occurred_at = Column(DateTime(timezone=True), nullable=True)

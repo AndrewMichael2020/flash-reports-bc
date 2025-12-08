@@ -470,3 +470,85 @@ If you encounter issues not covered in this guide:
    - Smoke test output
    - Browser console logs
    - Your environment (Codespaces vs local, OS, etc.)
+
+---
+
+## Per-source ingestion debugging
+
+To understand why a specific agency (e.g. Langley RCMP vs Surrey Police Service) is or isn’t producing incidents:
+
+1. **Check active sources for a region**
+
+   In the backend logs (with `LOG_LEVEL=DEBUG`), calling:
+
+   ```bash
+   curl -X POST http://127.0.0.1:8000/api/refresh -H "content-type: application/json" \
+     -d '{"region": "Fraser Valley, BC"}'
+   ```
+
+   will log something like:
+
+   ```text
+   Active sources for region Fraser Valley, BC: ['1:Langley RCMP parser=rcmp base_url=...', '5:Surrey Police Service parser=municipal_list base_url=...']
+   ```
+
+   This confirms which sources are actually being processed.
+
+2. **Inspect candidate URLs for a single source**
+
+   Use the debug endpoint (dev only):
+
+   ```bash
+   curl "http://127.0.0.1:8000/api/debug/candidates?source_id=1"
+   ```
+
+   Replace `1` with the `id` of the source (e.g. Langley RCMP or Surrey Police Service).  
+   This shows the raw list of anchor URLs the parser discovered on the listing page.
+
+3. **Check URL filtering**
+
+   The function `app.main._is_valid_article_url` decides whether a scraped URL is treated as an “article”:
+
+   - RCMP sources (`parser_id="rcmp"`) must have `/news/` or `/node/<id>` in the path and include digits.
+   - Municipal list sources (`parser_id="municipal_list"`, e.g. Surrey Police Service) must have a “news-like” segment in the path (e.g. `/news-releases/`), and some obvious static pages are blacklisted by keyword.
+
+   If a URL appears in `/api/debug/candidates` but not in the database, check the backend logs at DEBUG level to see why `_is_valid_article_url` rejected it.
+
+### Playwright system dependencies (for RCMP parser)
+
+If you see errors like:
+
+```text
+BrowserType.launch: Executable doesn't exist at .../chromium_headless_shell-...
+Playwright Host validation warning: Host system is missing dependencies to run browsers.
+```
+
+you need to install the OS packages that Chromium requires.
+
+In the dev container:
+
+```bash
+# from repo root (or backend/)
+sudo apt-get update && sudo apt-get install -y \
+    libatk1.0-0t64 \
+    libatk-bridge2.0-0t64 \
+    libcups2t64 \
+    libxkbcommon0 \
+    libatspi2.0-0t64 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxfixes3 \
+    libxrandr2 \
+    libgbm1 \
+    libasound2t64
+```
+
+Then (with your virtualenv active):
+
+```bash
+cd backend
+playwright install chromium
+ENV=dev uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
+
+After that, RCMP Playwright-based scraping (e.g. Langley RCMP) should work correctly.

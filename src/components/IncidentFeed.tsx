@@ -7,6 +7,20 @@ interface Props {
   selectedIncidentId: string | null;
 }
 
+// Small helper to render a compact time string
+function formatTime(ts: string | undefined | null): string {
+  if (!ts) return '';
+  const d = new Date(ts);
+  if (Number.isNaN(d.getTime())) return '';
+  // e.g. "Dec 8 · 07:51"
+  return d.toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).replace(',', '');
+}
+
 const IncidentFeed: React.FC<Props> = ({ incidents, onSelect, selectedIncidentId }) => {
   const getSeverityColor = (s: Severity) => {
     switch (s) {
@@ -32,31 +46,35 @@ const IncidentFeed: React.FC<Props> = ({ incidents, onSelect, selectedIncidentId
       {incidents.length === 0 && (
         <div className="text-slate-500 text-center text-sm py-10">Waiting for data stream...</div>
       )}
-      {incidents.map((incident) => (
-        <div
-          key={incident.id}
-          onClick={() => onSelect(incident)}
-          className={`
-            p-3 rounded-l border-l-4 cursor-pointer transition-all hover:bg-slate-800
-            ${selectedIncidentId === incident.id ? 'bg-slate-800 ring-1 ring-slate-600' : 'bg-slate-900/50'}
-            ${getSeverityColor(incident.severity)}
-          `}
-        >
-          <div className="flex justify-between items-start mb-1">
-            <span className="text-xs font-mono opacity-70 flex items-center gap-1">
-              {getSourceIcon(incident.source)} {incident.source}
-            </span>
-            <span className="text-[10px] font-bold uppercase tracking-wider opacity-90 border px-1 rounded border-current">
-              {incident.severity}
-            </span>
+      {incidents.map((incident) => {
+        const isSelected = incident.id === selectedIncidentId;
+        const displayTime = formatTime(incident.timestamp);
+        return (
+          <div
+            key={incident.id}
+            onClick={() => onSelect(incident)}
+            className={`
+              p-3 rounded-l border-l-4 cursor-pointer transition-all hover:bg-slate-800
+              ${isSelected ? 'bg-slate-800 ring-1 ring-slate-600' : 'bg-slate-900/50'}
+              ${getSeverityColor(incident.severity)}
+            `}
+          >
+            <div className="flex justify-between items-start mb-1">
+              <span className="text-xs font-mono opacity-70 flex items-center gap-1">
+                {getSourceIcon(incident.source)} {incident.source}
+              </span>
+              <span className="text-[10px] font-bold uppercase tracking-wider opacity-90 border px-1 rounded border-current">
+                {incident.severity}
+              </span>
+            </div>
+            <h4 className="font-semibold text-sm mb-1 leading-snug">{incident.summary}</h4>
+            <div className="flex items-center justify-between text-[11px] text-slate-500 mt-1">
+              <span>📍 {incident.location}</span>
+              {displayTime && <span>{displayTime}</span>}
+            </div>
           </div>
-          <h4 className="font-semibold text-sm mb-1 leading-snug">{incident.summary}</h4>
-          <div className="flex justify-between items-end mt-2">
-            <span className="text-xs opacity-60 truncate max-w-[120px]">📍 {incident.location}</span>
-            <span className="text-[10px] opacity-50">{new Date(incident.timestamp).toLocaleTimeString()}</span>
-          </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 };

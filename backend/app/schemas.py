@@ -54,6 +54,8 @@ class IncidentResponse(BaseModel):
     temporalContext: Optional[str] = None
     weaponInvolved: Optional[str] = None
     tacticalAdvice: Optional[str] = None
+    # New optional field: ISO timestamp when the incident occurred (if known)
+    incidentOccurredAt: Optional[str] = None
 
 
 class IncidentsResponse(BaseModel):

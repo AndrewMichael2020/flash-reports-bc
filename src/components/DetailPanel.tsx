@@ -1,5 +1,5 @@
 import React from 'react';
-import { Incident } from '../types';
+import { Incident, Severity } from '../types';
 
 interface Props {
   incident: Incident | null;
@@ -8,65 +8,145 @@ interface Props {
 const DetailPanel: React.FC<Props> = ({ incident }) => {
   if (!incident) {
     return (
-      <div className="h-full flex items-center justify-center text-slate-500 text-sm italic p-6 text-center border border-slate-800 rounded-lg bg-slate-900/50">
-        Select an incident or graph node to view intelligence details.
+      <div className="h-full flex items-center justify-center text-slate-500 text-sm">
+        Select an event from the feed or graph to see details.
       </div>
     );
   }
 
+  const {
+    summary,
+    fullText,
+    severity,
+    source,
+    location,
+    timestamp,
+    incidentOccurredAt,
+    tags,
+    entities,
+    sourceUrl,
+    crimeCategory,
+    temporalContext,
+    weaponInvolved,
+    tacticalAdvice,
+  } = incident;
+
+  const reportedAt = new Date(timestamp);
+  const occurredAt = incidentOccurredAt ? new Date(incidentOccurredAt) : null;
+
   return (
-    <div className="h-full bg-slate-900/80 border border-slate-700 rounded-lg p-4 flex flex-col overflow-y-auto shadow-xl">
-      <div className="mb-4 pb-4 border-b border-slate-700">
-        <h2 className="text-xl font-bold text-white mb-2">{incident.summary}</h2>
-        <div className="flex flex-wrap gap-2">
-          {incident.tags.map(tag => (
-            <span key={tag} className="text-xs bg-slate-700 text-slate-300 px-2 py-1 rounded-full">
-              #{tag}
-            </span>
-          ))}
+    <div className="flex flex-col h-full space-y-3 text-sm text-slate-200">
+      {/* Title */}
+      <div>
+        <div className="flex items-center justify-between mb-1">
+          <h3 className="text-base font-semibold text-white">{summary}</h3>
+          <span
+            className={`px-2 py-0.5 rounded text-[11px] font-bold ${
+              severity === Severity.CRITICAL
+                ? 'bg-red-600/80 text-white'
+                : severity === Severity.HIGH
+                ? 'bg-orange-500/80 text-white'
+                : severity === Severity.MEDIUM
+                ? 'bg-yellow-400/80 text-slate-900'
+                : 'bg-emerald-500/80 text-slate-900'
+            }`}
+          >
+            {severity}
+          </span>
         </div>
+        <p className="text-[11px] text-slate-500">
+          {source} · {location}
+        </p>
       </div>
 
-      <div className="space-y-6">
+      {/* Times */}
+      <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-400">
         <div>
-          <h3 className="text-xs uppercase tracking-wider text-slate-500 font-bold mb-2">Raw Intelligence</h3>
-          <p className="text-slate-300 text-sm leading-relaxed bg-slate-800/50 p-3 rounded">
-            {incident.fullText}
-          </p>
+          <div className="text-slate-500 uppercase tracking-wide text-[10px]">Reported</div>
+          <div className="text-[12px] text-slate-200">{reportedAt.toLocaleString()}</div>
         </div>
+        {occurredAt && (
+          <div>
+            <div className="text-slate-500 uppercase tracking-wide text-[10px]">Incident Time</div>
+            <div className="text-[12px] text-slate-200">{occurredAt.toLocaleString()}</div>
+          </div>
+        )}
+      </div>
 
-        <div>
-          <h3 className="text-xs uppercase tracking-wider text-slate-500 font-bold mb-2">Detected Entities</h3>
-          {incident.entities.length > 0 ? (
-            <ul className="space-y-1">
-              {incident.entities.map((entity, idx) => (
-                <li key={idx} className="flex items-center gap-2 text-sm text-sky-400">
-                  <span className="w-1.5 h-1.5 bg-sky-500 rounded-full"></span>
-                  {entity}
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <span className="text-slate-600 text-sm">No specific entities extracted.</span>
+      {/* Analysis and Sources */}
+      <div className="mt-1 border-t border-slate-800 pt-2">
+        <div className="flex items-center justify-between mb-2">
+          <h4 className="text-sm font-semibold text-slate-200 uppercase tracking-wide">
+            Analysis and Sources
+          </h4>
+          {sourceUrl && (
+            <a
+              href={sourceUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="text-[11px] text-blue-400 hover:text-blue-300 underline"
+            >
+              Open source article
+            </a>
           )}
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          <div className="bg-slate-800/30 p-2 rounded border border-slate-700">
-            <span className="block text-xs text-slate-500">Source</span>
-            <span className="text-sm font-medium text-slate-200">{incident.source}</span>
-          </div>
-          <div className="bg-slate-800/30 p-2 rounded border border-slate-700">
-            <span className="block text-xs text-slate-500">Location</span>
-            <span className="text-sm font-medium text-slate-200 truncate">{incident.location}</span>
-          </div>
+        <div className="space-y-1 text-[12px] text-slate-200">
+          {crimeCategory && (
+            <div>
+              <span className="text-slate-500">Crime Category: </span>
+              <span>{crimeCategory}</span>
+            </div>
+          )}
+          {temporalContext && (
+            <div>
+              <span className="text-slate-500">Temporal Context: </span>
+              <span>{temporalContext}</span>
+            </div>
+          )}
+          {weaponInvolved && (
+            <div>
+              <span className="text-slate-500">Weapon Involved: </span>
+              <span>{weaponInvolved}</span>
+            </div>
+          )}
+          {tacticalAdvice && (
+            <div>
+              <span className="text-slate-500">Tactical Advice: </span>
+              <span>{tacticalAdvice}</span>
+            </div>
+          )}
         </div>
+      </div>
 
-        {incident.severity === 'Critical' && (
-           <div className="mt-4 p-3 bg-red-900/20 border border-red-600/50 rounded text-red-200 text-sm animate-pulse">
-             ⚠️ <strong>ALERT:</strong> This incident is marked as CRITICAL. Immediate cross-reference with Penitentiary and Transport logs suggested.
-           </div>
-        )}
+      {/* Entities */}
+      <div className="mt-2">
+        <h4 className="text-xs font-semibold text-slate-300 uppercase tracking-wide mb-1">
+          Detected Entities
+        </h4>
+        <div className="flex flex-wrap gap-1">
+          {entities.map((e) => (
+            <span
+              key={e}
+              className="px-2 py-0.5 rounded-full bg-slate-800 text-[11px] text-slate-200"
+            >
+              {e}
+            </span>
+          ))}
+          {entities.length === 0 && (
+            <span className="text-[11px] text-slate-500">None detected.</span>
+          )}
+        </div>
+      </div>
+
+      {/* Narrative */}
+      <div className="mt-2">
+        <h4 className="text-xs font-semibold text-slate-300 uppercase tracking-wide mb-1">
+          Narrative
+        </h4>
+        <div className="text-[11px] text-slate-300 bg-slate-900/60 rounded p-2 border border-slate-800 overflow-y-auto max-h-40">
+          {fullText}
+        </div>
       </div>
     </div>
   );

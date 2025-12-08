@@ -259,7 +259,13 @@ async def refresh_feed(
         )
     
     logger.info(f"Found {len(sources)} active sources for {region}")
-    
+    # NEW: log the list of sources actually being processed for this refresh
+    logger.debug(
+        "Active sources for region %s: %s",
+        region,
+        [f"{s.id}:{s.agency_name} parser={s.parser_id} base_url={s.base_url}" for s in sources],
+    )
+
     # Initialize enricher (will use dummy enrichment if GEMINI_API_KEY not set)
     enricher = None
     if os.getenv("DISABLE_ENRICHMENT", "").lower() in ("1", "true", "yes"):
@@ -318,18 +324,25 @@ async def refresh_feed(
         # Upsert articles and enrich
         for article in new_articles:
             # Debug: log candidate article info
-            logger.debug(f"Candidate article (source={source.agency_name}): url={article.url} external_id={article.external_id} title='{(article.title_raw or '')[:80]}' published_at={article.published_at}")
+            logger.debug(
+                f"Candidate article (source={source.agency_name}): "
+                f"url={article.url} external_id={article.external_id} "
+                f"title='{(article.title_raw or '')[:80]}' published_at={article.published_at}"
+            )
 
             # Skip non-HTTP URLs early to avoid noisy errors
             if not article.url or not (article.url.startswith("http://") or article.url.startswith("https://")):
                 logger.debug(f"Skipping non-HTTP URL for article: {article.url}")
                 continue
 
-            # FILTER: Ensure URL looks like an article and is same-host as configured base_url
-            is_valid = _is_valid_article_url(source, article.url)
-            if not is_valid:
-                logger.debug(f"Skipping URL not considered a valid article for source={source.agency_name}: {article.url} (base={source.base_url})")
-                continue
+            # REMOVE: additional URL heuristic (_is_valid_article_url) — let parsers decide.
+            # is_valid = _is_valid_article_url(source, article.url)
+            # if not is_valid:
+            #     logger.debug(
+            #         f"Skipping URL not considered a valid article for "
+            #         f"source={source.agency_name}: {article.url} (base={source.base_url})"
+            #     )
+            #     continue
 
             # Check if article already exists
             existing = db.query(ArticleRaw).filter(
@@ -402,7 +415,9 @@ async def refresh_feed(
                 weapon_involved=enrichment.get("weapon_involved"),
                 tactical_advice=enrichment.get("tactical_advice"),
                 llm_model=llm_model,
-                prompt_version=prompt_version
+                prompt_version=prompt_version,
+                # New optional datetime; enrichment pipeline may start populating this later.
+                incident_occurred_at=None,
             )
             db.add(enriched)
             new_articles_count += 1
@@ -489,7 +504,7 @@ async def get_incidents(
             source=source_type,
             location=enriched.location_label or source.region_label,
             coordinates=CoordinatesSchema(
-                lat=enriched.lat or 49.1042,  # Default to Fraser Valley area
+                lat=enriched.lat or 49.1042,
                 lng=enriched.lng or -122.6604
             ),
             summary=article.title_raw,
@@ -498,11 +513,11 @@ async def get_incidents(
             tags=enriched.tags or [],
             entities=entities_list,
             relatedIncidentIds=[],
-            # Map new citizen-facing fields
             crimeCategory=enriched.crime_category,
             temporalContext=enriched.temporal_context,
             weaponInvolved=enriched.weapon_involved,
-            tacticalAdvice=enriched.tactical_advice
+            tacticalAdvice=enriched.tactical_advice,
+            incidentOccurredAt=enriched.incident_occurred_at.isoformat() if enriched.incident_occurred_at else None,
         )
         incidents.append(incident)
     
@@ -724,62 +739,56 @@ async def debug_candidates(
         target_url = base_url
         # attempt to infer parser id from sources config DB if available
         src = db.query(Source).filter(Source.base_url == base_url).first()
-        parser_id = src.parser_id if src else "rcmp"
+        parser_id = src.parser_id if src else None
 
+    # For dev, always allow http://localhost links
+    if target_url and "localhost" in target_url:
+        logger.info(f"Allowing localhost target URL for dev candidate debug: {target_url}")
+    else:
+        # In production, enforce valid URL structure
+        parsed = urlparse(target_url)
+        if not (parsed.scheme and parsed.netloc):
+            raise HTTPException(status_code=400, detail="Invalid URL structure for base_url")
+
+    # Lookup parser by ID
     parser = get_parser(parser_id)
-    # If parser has the diagnostics method, call it
-    if hasattr(parser, "discover_candidate_anchors"):
-        try:
-            diagnostics = await parser.discover_candidate_anchors(target_url)
-            return JSONResponse({"base_url": target_url, "diagnostics": diagnostics})
-        except Exception as e:
-            logger.exception("Debug candidate discovery failed")
-            raise HTTPException(status_code=500, detail=str(e))
-    else:
-        raise HTTPException(status_code=400, detail="Parser does not support candidate discovery")
 
+    # For dev, allow overriding parser via query param (for testing different parsers)
+    if ENV == "dev" and parser_id != "rcmp" and parser_id != "municipal_list" and parser_id != "wordpress":
+        logger.warning(f"DEV overriding parser to 'rcmp' for source_id={source_id} base_url={base_url}")
+        parser_id = "rcmp"
+        parser = get_parser(parser_id)
 
-@app.get("/api/debug/render", response_class=HTMLResponse)
-async def debug_render(
-    source_id: Optional[int] = Query(None),
-    base_url: Optional[str] = Query(None),
-    db: Session = Depends(get_db)
-):
-    """
-    DEV-only endpoint: return the rendered HTML for a source listing.
-    Use it to inspect the final rendered HTML (Playwright) or server-side HTML,
-    to verify anchors are present. Disabled unless ENV == 'dev'.
-    """
-    if ENV != "dev":
-        raise HTTPException(status_code=403, detail="Debug endpoint only available in dev environment")
+    logger.info(f"Debug candidates for source_id={source_id} base_url={base_url} using parser_id={parser_id}")
 
-    if not source_id and not base_url:
-        raise HTTPException(status_code=400, detail="Provide source_id or base_url")
+    # For dev, relax URL validation to allow any http(s) URL
+    def relaxed_url_validator(url: str) -> bool:
+        return url.startswith("http://") or url.startswith("https://")
 
-    if source_id:
-        source = db.query(Source).filter(Source.id == source_id).first()
-        if not source:
-            raise HTTPException(status_code=404, detail="Source not found")
-        target_url = source.base_url
-        parser_id = source.parser_id
-    else:
-        target_url = base_url
-        src = db.query(Source).filter(Source.base_url == base_url).first()
-        parser_id = src.parser_id if src else "rcmp"
+    # Legacy URL heuristic (no longer used in ingestion).
+    # Parsers (RCMP, municipal_list, wordpress) are now responsible for filtering
+    # which links are treated as articles.
+    def _is_valid_article_url(source, article_url: str) -> bool:
+        return True
 
-    parser = get_parser(parser_id)
-    # If parser has the render helper, call it
-    if hasattr(parser, "render_listing_page"):
-        try:
-            rendered_html = await parser.render_listing_page(target_url)
-            if not rendered_html:
-                raise HTTPException(status_code=500, detail="Failed to fetch/render listing page")
-            return HTMLResponse(content=rendered_html)
-        except Exception as e:
-            logger.exception("Debug render failed")
-            raise HTTPException(status_code=500, detail=str(e))
-    else:
-        raise HTTPException(status_code=400, detail="Parser does not support rendering")
+    # Get anchor candidates
+    try:
+        candidates = await parser.get_anchor_candidates(
+            base_url=target_url,
+            source_id=source_id,
+            url_validator=relaxed_url_validator
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching candidates: {e}")
+    
+    logger.info(f"Found {len(candidates)} anchor candidates for {target_url}")
+    
+    return {
+        "source_id": source_id,
+        "base_url": target_url,
+        "parser_id": parser_id,
+        "candidates": candidates
+    }
 
 
 def get_parser(parser_id: str):
@@ -794,63 +803,6 @@ def get_parser(parser_id: str):
     elif parser_id == "municipal_list":
         return MunicipalListParser()
     else:
+        # Add explicit logging to help debug DB/config issues
+        logger.error("Unknown parser_id in Source configuration: %s", parser_id)
         raise ValueError(f"Unknown parser_id: {parser_id}")
-
-
-def _is_valid_article_url(source, article_url: str) -> bool:
-    """
-    Heuristic to validate that an extracted URL is actually an article we want to index.
-    - Must be a http/https URL.
-    - Must be the same netloc as the source base_url. Use endswith comparison to allow www vs non-www.
-    - Must not be the same path as the listing base_url (avoid listing pages and anchors).
-    - For RCMP sources, require '/news/' and digits (year/id) somewhere in the path.
-    - Avoid obvious non-article content paths (about, contact, cookie, privacy, terms).
-    """
-    if not article_url:
-        return False
-
-    try:
-        parsed = urlparse(article_url)
-        if parsed.scheme not in ("http", "https"):
-            return False
-    except Exception:
-        return False
-
-    base_parsed = urlparse(source.base_url)
-    # Ensure same host so we don't capture external links — allow www variations
-    if parsed.netloc and not parsed.netloc.lower().endswith(base_parsed.netloc.lower()):
-        logger.debug(f"_is_valid_article_url: host mismatch parsed={parsed.netloc} base={base_parsed.netloc}")
-        return False
-
-    # Avoid base listing URL (with or without trailing slash or fragment)
-    base_path = base_parsed.path.rstrip('/')
-    if parsed.path.rstrip('/') == base_path:
-        logger.debug(f"_is_valid_article_url: path equals base listing path: {parsed.path}")
-        return False
-
-    path_lower = parsed.path.lower()
-
-    # Skip obvious non-article pages
-    non_article_prefixes = ["/about", "/contact", "/cookie", "/cookies", "/privacy", "/terms", "/careers", "/join-us"]
-    for prefix in non_article_prefixes:
-        if path_lower.startswith(prefix):
-            logger.debug(f"_is_valid_article_url: path has non-article prefix: {prefix} -> {path_lower}")
-            return False
-
-    # Specific RCMP heuristics: articles live under '/news/' with a numeric resource id or node id
-    if getattr(source, "parser_id", "") == "rcmp":
-        if "/news/" not in path_lower and not re.search(r"/node/\d+", path_lower):
-            logger.debug(f"_is_valid_article_url: RCMP link missing /news/ or /node/ : {path_lower}")
-            return False
-        # accept /news/*digits* or node id patterns
-        if not re.search(r"/news/.*/\d+|/news/.*\d|/node/\d+", path_lower):
-            logger.debug(f"_is_valid_article_url: RCMP link does not match news/node numeric pattern: {path_lower}")
-            return False
-
-    # All checks passed — consider valid
-    return True
-
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=int(os.getenv("PORT", "8000")))

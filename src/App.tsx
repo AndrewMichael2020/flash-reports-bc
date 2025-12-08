@@ -302,7 +302,9 @@ function App() {
         {/* Right Sidebar: Details */}
         <aside className="col-span-3 bg-slate-900 border-l border-slate-800 p-4 flex flex-col z-10 shadow-[-10px_0_20px_rgba(0,0,0,0.2)]">
           <div className="mb-4">
-            <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Tactical Analysis</h2>
+            <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+              Analysis and Sources
+            </h2>
           </div>
           <div className="flex-1 overflow-hidden">
             <DetailPanel incident={selectedIncident} />

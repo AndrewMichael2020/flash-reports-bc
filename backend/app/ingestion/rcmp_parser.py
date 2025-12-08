@@ -33,8 +33,9 @@ logger = logging.getLogger(__name__)
 try:
     from playwright.async_api import async_playwright, Page
     PLAYWRIGHT_AVAILABLE = True
-except Exception:
+except Exception as e:
     PLAYWRIGHT_AVAILABLE = False
+    logger.warning("Playwright import failed in RCMPParser: %s", e)
 
 RCMP_MAX_ARTICLES = int(os.getenv("RCMP_MAX_ARTICLES", "20"))
 RCMP_TEST_JSON = os.getenv("RCMP_TEST_JSON", "")  # If set, parse a JSON sample instead of network fetching
@@ -63,25 +64,30 @@ class RCMPParser(SourceParser):
         """
         Fetch new articles for a source. Uses JSON sample file only if allow_test_json=True and RCMP_TEST_JSON set.
         """
-        # If dev/test JSON loader explicitly allowed, prefer it because it's fast and deterministic for local testing
+        logger.info("RCMPParser.fetch_new_articles source_id=%s base_url=%s since=%s", source_id, base_url, since)
+
+        # If dev/test JSON loader explicitly allowed, prefer it because it's fast and deterministic
         if self.allow_test_json and RCMP_TEST_JSON:
             try:
                 items = self._load_from_sample_json(RCMP_TEST_JSON, base_url)
-                # Convert items to RawArticle and filter by 'since'
                 return self._to_raw_article_list(items, since)
             except Exception as e:
-                # Continue to playwright if sample file not parsable
-                logger.warning(f"Failed loading sample JSON '{RCMP_TEST_JSON}': {e}")
+                logger.warning("RCMPParser sample JSON failed (%s), falling back to live Playwright/HTTP: %s", RCMP_TEST_JSON, e)
 
-        # If Playwright is not available, raise early to help debug misconfigured environments
+        # If Playwright is requested but not available, log clearly
         if self.use_playwright and not PLAYWRIGHT_AVAILABLE:
-            raise RuntimeError("Playwright not installed — please install with: pip install playwright && playwright install chromium")
+            logger.error(
+                "RCMPParser misconfigured: use_playwright=True but Playwright is not available. "
+                "Install with: pip install playwright && playwright install chromium"
+            )
+            raise RuntimeError("Playwright not installed for RCMPParser")
 
         # Use Playwright to fetch listing & articles
         if self.use_playwright:
+            logger.debug("RCMPParser using Playwright for base_url=%s", base_url)
             return await self._fetch_via_playwright(base_url, since)
         else:
-            # If playwright disabled, fallback to simple HTTP approach (best-effort)
+            logger.debug("RCMPParser using HTTPX fallback for base_url=%s", base_url)
             return await self._fetch_via_httpx(base_url, since)
 
     def _load_from_sample_json(self, json_path: str, listing_url: str) -> List[Dict[str, Any]]:
