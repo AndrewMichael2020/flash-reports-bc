@@ -40,6 +40,21 @@ from contextlib import asynccontextmanager
 # Configuration constants
 SCRAPER_TIMEOUT_SECONDS = 30.0  # Timeout per source when fetching articles
 
+# Default enrichment values for fallback when LLM enrichment fails or is unavailable
+DEFAULT_ENRICHMENT_VALUES = {
+    "severity": "MEDIUM",
+    "tags": [],
+    "entities": [],
+    "location_label": None,
+    "lat": None,
+    "lng": None,
+    "graph_cluster_key": None,
+    "crime_category": "Unknown",
+    "temporal_context": None,
+    "weapon_involved": None,
+    "tactical_advice": None,
+}
+
 # Set up logging
 setup_logging(level=os.getenv("LOG_LEVEL", "INFO"))
 logger = get_logger(__name__)
@@ -221,7 +236,7 @@ async def refresh_feed(
             logger.warning(f"Gemini enrichment not available, using dummy enrichment: {e}")
         except Exception as e:
             # Any other init failure
-            logger.error(f"Gemini enricher initialization failed, using dummy enrichment: {e}")
+            logger.error(f"Gemini enricher initialization failed, using dummy enrichment: {e}", exc_info=True)
 
     new_articles_count = 0
     
@@ -320,14 +335,8 @@ async def refresh_feed(
                     # Fall back to dummy enrichment
                     summary_tactical = article.body_raw[:200] if len(article.body_raw) > 200 else article.body_raw
                     enrichment = {
-                        "severity": "MEDIUM",
-                        "summary_tactical": summary_tactical,
-                        "tags": [],
-                        "entities": [],
-                        "location_label": None,
-                        "lat": None,
-                        "lng": None,
-                        "graph_cluster_key": None
+                        **DEFAULT_ENRICHMENT_VALUES,
+                        "summary_tactical": summary_tactical
                     }
                     llm_model = "none"
                     prompt_version = "dummy_v1"
@@ -335,14 +344,8 @@ async def refresh_feed(
                 logger.debug(f"Enricher is None, using dummy enrichment for article id={db_article.id}")
                 summary_tactical = article.body_raw[:200] if len(article.body_raw) > 200 else article.body_raw
                 enrichment = {
-                    "severity": "MEDIUM",
-                    "summary_tactical": summary_tactical,
-                    "tags": [],
-                    "entities": [],
-                    "location_label": None,
-                    "lat": None,
-                    "lng": None,
-                    "graph_cluster_key": None
+                    **DEFAULT_ENRICHMENT_VALUES,
+                    "summary_tactical": summary_tactical
                 }
                 llm_model = "none"
                 prompt_version = "dummy_v1"
@@ -357,6 +360,10 @@ async def refresh_feed(
                 lat=enrichment.get("lat"),
                 lng=enrichment.get("lng"),
                 graph_cluster_key=enrichment.get("graph_cluster_key"),
+                crime_category=enrichment.get("crime_category", "Unknown"),
+                temporal_context=enrichment.get("temporal_context"),
+                weapon_involved=enrichment.get("weapon_involved"),
+                tactical_advice=enrichment.get("tactical_advice"),
                 llm_model=llm_model,
                 prompt_version=prompt_version
             )
@@ -453,7 +460,12 @@ async def get_incidents(
             severity=severity,
             tags=enriched.tags or [],
             entities=entities_list,
-            relatedIncidentIds=[]
+            relatedIncidentIds=[],
+            # Map new citizen-facing fields
+            crimeCategory=enriched.crime_category,
+            temporalContext=enriched.temporal_context,
+            weaponInvolved=enriched.weapon_involved,
+            tacticalAdvice=enriched.tactical_advice
         )
         incidents.append(incident)
     
@@ -594,6 +606,59 @@ async def get_map(
         region=region,
         markers=markers
     )
+
+
+@app.get("/api/debug/enrichment-check")
+async def debug_enrichment_check():
+    """
+    DEV-only endpoint: validate enrichment configuration and perform a test enrichment.
+    Returns status of enricher initialization and test enrichment attempt.
+    """
+    if ENV != "dev":
+        raise HTTPException(status_code=403, detail="Debug endpoint only available in dev environment")
+    
+    result = {
+        "ok": False,
+        "error": None,
+        "model_name": None,
+        "prompt_version": None,
+        "api_key_present": bool(os.getenv("GEMINI_API_KEY")),
+        "test_enrichment": None
+    }
+    
+    try:
+        # Try to initialize enricher
+        enricher = GeminiEnricher()
+        result["model_name"] = enricher.model_name
+        result["prompt_version"] = enricher.prompt_version
+        
+        # Try a minimal test enrichment
+        test_article = {
+            "title": "Test Article - Vehicle Collision Investigation",
+            "body": "Police are investigating a two-vehicle collision that occurred on Highway 1 near 264th Street. No injuries reported.",
+            "agency": "Test Agency",
+            "region": "Test Region"
+        }
+        
+        enrichment = await enricher.enrich_article(**test_article)
+        result["test_enrichment"] = {
+            "severity": enrichment.get("severity"),
+            "has_summary": bool(enrichment.get("summary_tactical")),
+            "tags_count": len(enrichment.get("tags", [])),
+            "entities_count": len(enrichment.get("entities", []))
+        }
+        result["ok"] = True
+        
+    except ValueError as e:
+        # Missing API key or config issue
+        result["error"] = str(e)
+        logger.warning(f"Enrichment check failed: {e}")
+    except Exception as e:
+        # Any other error
+        result["error"] = f"Unexpected error: {str(e)}"
+        logger.error(f"Enrichment check failed with unexpected error: {e}")
+    
+    return JSONResponse(result)
 
 
 @app.get("/api/debug/candidates")

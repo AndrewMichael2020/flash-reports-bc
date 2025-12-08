@@ -10,6 +10,9 @@ from google.genai import types
 
 import yaml
 from pathlib import Path
+from app.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 def _load_enrichment_config() -> dict:
@@ -46,13 +49,22 @@ class GeminiEnricher:
     def __init__(self):
         api_key = os.getenv("GEMINI_API_KEY")
         if not api_key:
+            logger.error("GEMINI_API_KEY environment variable not set")
             raise ValueError("GEMINI_API_KEY environment variable not set")
         
+        logger.info("GEMINI_API_KEY found, initializing Gemini client")
         cfg = _load_enrichment_config()
         
-        self.client = genai.Client(api_key=api_key)
+        try:
+            self.client = genai.Client(api_key=api_key)
+            logger.info("Gemini client initialized successfully")
+        except Exception as e:
+            logger.error(f"Failed to initialize Gemini client: {e}")
+            raise
+        
         self.model_name: str = cfg.get("model_name", "gemini-1.5-flash")
         self.prompt_version: str = cfg.get("prompt_version", "v1.0")
+        logger.info(f"GeminiEnricher configured: model_name={self.model_name}, prompt_version={self.prompt_version}")
     
     async def enrich_article(
         self,
@@ -74,10 +86,15 @@ class GeminiEnricher:
         - lat: float | None
         - lng: float | None
         - graph_cluster_key: str | None
+        - crime_category: str (default "Unknown")
+        - temporal_context: str | None
+        - weapon_involved: str | None
+        - tactical_advice: str | None
         """
         
         prompt = f"""
 You are a tactical analyst for police intelligence working with official police / RCMP news releases.
+Your goal is to extract factual, citizen-focused metadata from incident reports.
 
 Article Details:
 - Agency: {agency}
@@ -90,11 +107,38 @@ Body (truncated to ~2000 chars):
 
 Tasks (STRICT):
 1. Classify SEVERITY as exactly one of: LOW, MEDIUM, HIGH, CRITICAL.
-   - CRITICAL: homicide, assassination, mass-casualty event, prison escape
+   - CRITICAL: homicide, assassination, mass-casualty event, prison escape, active shooter
+   - HIGH: shootings, stabbings, violent assaults, serious crashes with injuries, armed robbery, domestic violence with weapons
+   - MEDIUM: robberies, break-ins, property crime with weapons, drug trafficking, assault without weapons, DUI with injury
+   - LOW: minor theft, mischief, fraud, drug possession, traffic violations, non-injury incidents
+
+2. Summary: A brief tactical summary (1-2 sentences) for law enforcement.
+
 3. Tags: short category labels (e.g. ["Gang Activity","Trafficking","Shooting"]).
+
 4. Entities: structured objects with type + name (e.g. gang, person, location).
+
 5. Location: a human-readable label plus approximate latitude/longitude if inferable.
+
 6. Graph cluster key: a short string used to group related incidents (e.g. "Surrey_dial_a_dope_war").
+
+7. Crime Category: A citizen-friendly category. Choose from:
+   - "Violent Crime" (assault, homicide, shooting, stabbing, domestic violence)
+   - "Property Crime" (theft, break-in, robbery, fraud, vandalism)
+   - "Traffic Incident" (collision, DUI, dangerous driving)
+   - "Drug Offense" (possession, trafficking, production)
+   - "Sexual Offense" (assault, exploitation)
+   - "Cybercrime" (fraud, identity theft, online exploitation)
+   - "Public Safety" (missing person, suspicious activity, public disturbance)
+   - "Other" (doesn't fit above categories)
+   - "Unknown" (insufficient information to categorize)
+   Return "Unknown" if unsure.
+
+8. Temporal Context: When the incident occurred in human terms (e.g. "Early morning hours", "During rush hour", "Late night"). Return null if not specified.
+
+9. Weapon Involved: Type of weapon if mentioned (e.g. "Firearm", "Knife", "Vehicle as weapon", "Blunt object", "None mentioned"). Return null if not mentioned or unclear.
+
+10. Tactical Advice: Brief safety tip or context for citizens (e.g. "Avoid the area", "Increased patrols in effect", "No ongoing threat to public", "Suspect in custody"). Return null if not applicable.
 
 Return ONLY a single JSON object with this exact shape:
 {{
@@ -109,7 +153,11 @@ Return ONLY a single JSON object with this exact shape:
   "location_label": "string or null",
   "lat": 49.123 or null,
   "lng": -122.456 or null,
-  "graph_cluster_key": "string or null"
+  "graph_cluster_key": "string or null",
+  "crime_category": "string (default Unknown if unsure)",
+  "temporal_context": "string or null",
+  "weapon_involved": "string or null",
+  "tactical_advice": "string or null"
 }}
 """
 
@@ -140,10 +188,15 @@ Return ONLY a single JSON object with this exact shape:
                 "lat": result.get("lat"),
                 "lng": result.get("lng"),
                 "graph_cluster_key": result.get("graph_cluster_key"),
+                # New citizen-facing fields with safe defaults
+                "crime_category": result.get("crime_category") or "Unknown",
+                "temporal_context": result.get("temporal_context"),
+                "weapon_involved": result.get("weapon_involved"),
+                "tactical_advice": result.get("tactical_advice"),
             }
             
         except Exception as e:
-            print(f"Enrichment failed: {e}")
+            logger.error(f"Enrichment failed for title='{title[:80]}...': {e}")
             # Return minimal valid enrichment
             return {
                 "severity": "MEDIUM",
@@ -154,4 +207,8 @@ Return ONLY a single JSON object with this exact shape:
                 "lat": None,
                 "lng": None,
                 "graph_cluster_key": None,
+                "crime_category": "Unknown",
+                "temporal_context": None,
+                "weapon_involved": None,
+                "tactical_advice": None,
             }

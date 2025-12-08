@@ -49,6 +49,11 @@ class IncidentResponse(BaseModel):
     tags: List[str]
     entities: List[str]  # Frontend expects string array
     relatedIncidentIds: List[str]
+    # New citizen-facing fields (optional to avoid breaking existing clients)
+    crimeCategory: Optional[str] = None
+    temporalContext: Optional[str] = None
+    weaponInvolved: Optional[str] = None
+    tacticalAdvice: Optional[str] = None
 
 
 class IncidentsResponse(BaseModel):
