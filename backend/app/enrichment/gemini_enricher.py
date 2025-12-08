@@ -86,10 +86,15 @@ class GeminiEnricher:
         - lat: float | None
         - lng: float | None
         - graph_cluster_key: str | None
+        - crime_category: str (default "Unknown")
+        - temporal_context: str | None
+        - weapon_involved: str | None
+        - tactical_advice: str | None
         """
         
         prompt = f"""
 You are a tactical analyst for police intelligence working with official police / RCMP news releases.
+Your goal is to extract factual, citizen-focused metadata from incident reports.
 
 Article Details:
 - Agency: {agency}
@@ -103,10 +108,27 @@ Body (truncated to ~2000 chars):
 Tasks (STRICT):
 1. Classify SEVERITY as exactly one of: LOW, MEDIUM, HIGH, CRITICAL.
    - CRITICAL: homicide, assassination, mass-casualty event, prison escape
+   - HIGH: shootings, violent assaults, serious crashes with injuries
+   - MEDIUM: robberies, break-ins, property crime with weapons
+   - LOW: minor theft, mischief, non-injury incidents
+
+2. Summary: A brief tactical summary (1-2 sentences) for law enforcement.
+
 3. Tags: short category labels (e.g. ["Gang Activity","Trafficking","Shooting"]).
+
 4. Entities: structured objects with type + name (e.g. gang, person, location).
+
 5. Location: a human-readable label plus approximate latitude/longitude if inferable.
+
 6. Graph cluster key: a short string used to group related incidents (e.g. "Surrey_dial_a_dope_war").
+
+7. Crime Category: A citizen-friendly category (e.g. "Violent Crime", "Property Crime", "Traffic Incident", "Drug Offense", "Unknown"). Return "Unknown" if unsure.
+
+8. Temporal Context: When the incident occurred in human terms (e.g. "Early morning hours", "During rush hour", "Late night"). Return null if not specified.
+
+9. Weapon Involved: Type of weapon if mentioned (e.g. "Firearm", "Knife", "Vehicle as weapon", "None mentioned"). Return null if not mentioned or unclear.
+
+10. Tactical Advice: Brief safety tip or context for citizens (e.g. "Avoid the area", "Increased patrols in effect", "No ongoing threat to public"). Return null if not applicable.
 
 Return ONLY a single JSON object with this exact shape:
 {{
@@ -121,7 +143,11 @@ Return ONLY a single JSON object with this exact shape:
   "location_label": "string or null",
   "lat": 49.123 or null,
   "lng": -122.456 or null,
-  "graph_cluster_key": "string or null"
+  "graph_cluster_key": "string or null",
+  "crime_category": "string (default Unknown if unsure)",
+  "temporal_context": "string or null",
+  "weapon_involved": "string or null",
+  "tactical_advice": "string or null"
 }}
 """
 
@@ -152,6 +178,11 @@ Return ONLY a single JSON object with this exact shape:
                 "lat": result.get("lat"),
                 "lng": result.get("lng"),
                 "graph_cluster_key": result.get("graph_cluster_key"),
+                # New citizen-facing fields with safe defaults
+                "crime_category": result.get("crime_category") or "Unknown",
+                "temporal_context": result.get("temporal_context"),
+                "weapon_involved": result.get("weapon_involved"),
+                "tactical_advice": result.get("tactical_advice"),
             }
             
         except Exception as e:
@@ -166,4 +197,8 @@ Return ONLY a single JSON object with this exact shape:
                 "lat": None,
                 "lng": None,
                 "graph_cluster_key": None,
+                "crime_category": "Unknown",
+                "temporal_context": None,
+                "weapon_involved": None,
+                "tactical_advice": None,
             }

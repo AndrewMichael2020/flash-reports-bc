@@ -327,7 +327,11 @@ async def refresh_feed(
                         "location_label": None,
                         "lat": None,
                         "lng": None,
-                        "graph_cluster_key": None
+                        "graph_cluster_key": None,
+                        "crime_category": "Unknown",
+                        "temporal_context": None,
+                        "weapon_involved": None,
+                        "tactical_advice": None,
                     }
                     llm_model = "none"
                     prompt_version = "dummy_v1"
@@ -342,7 +346,11 @@ async def refresh_feed(
                     "location_label": None,
                     "lat": None,
                     "lng": None,
-                    "graph_cluster_key": None
+                    "graph_cluster_key": None,
+                    "crime_category": "Unknown",
+                    "temporal_context": None,
+                    "weapon_involved": None,
+                    "tactical_advice": None,
                 }
                 llm_model = "none"
                 prompt_version = "dummy_v1"
@@ -357,6 +365,10 @@ async def refresh_feed(
                 lat=enrichment.get("lat"),
                 lng=enrichment.get("lng"),
                 graph_cluster_key=enrichment.get("graph_cluster_key"),
+                crime_category=enrichment.get("crime_category", "Unknown"),
+                temporal_context=enrichment.get("temporal_context"),
+                weapon_involved=enrichment.get("weapon_involved"),
+                tactical_advice=enrichment.get("tactical_advice"),
                 llm_model=llm_model,
                 prompt_version=prompt_version
             )
