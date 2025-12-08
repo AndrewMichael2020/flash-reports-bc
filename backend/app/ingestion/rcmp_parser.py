@@ -230,6 +230,8 @@ class RCMPParser(SourceParser):
             "social media",
             "british columbia rcmp",
             "about this site",
+            "proactive disclosure",
+            "headquarters update",
         )
 
         def is_bad_title(title: str) -> bool:
@@ -275,7 +277,7 @@ class RCMPParser(SourceParser):
             if href.startswith("http"):
                 return href
             if href.startswith("/"):
-                return urljoin(self.base_url, href)
+                return urljoin(listing_url, href)
             return None
 
         # Strategy 1: look for <article> and news card structures
