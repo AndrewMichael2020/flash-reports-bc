@@ -40,6 +40,21 @@ from contextlib import asynccontextmanager
 # Configuration constants
 SCRAPER_TIMEOUT_SECONDS = 30.0  # Timeout per source when fetching articles
 
+# Default enrichment values for fallback when LLM enrichment fails or is unavailable
+DEFAULT_ENRICHMENT_VALUES = {
+    "severity": "MEDIUM",
+    "tags": [],
+    "entities": [],
+    "location_label": None,
+    "lat": None,
+    "lng": None,
+    "graph_cluster_key": None,
+    "crime_category": "Unknown",
+    "temporal_context": None,
+    "weapon_involved": None,
+    "tactical_advice": None,
+}
+
 # Set up logging
 setup_logging(level=os.getenv("LOG_LEVEL", "INFO"))
 logger = get_logger(__name__)
@@ -320,18 +335,8 @@ async def refresh_feed(
                     # Fall back to dummy enrichment
                     summary_tactical = article.body_raw[:200] if len(article.body_raw) > 200 else article.body_raw
                     enrichment = {
-                        "severity": "MEDIUM",
-                        "summary_tactical": summary_tactical,
-                        "tags": [],
-                        "entities": [],
-                        "location_label": None,
-                        "lat": None,
-                        "lng": None,
-                        "graph_cluster_key": None,
-                        "crime_category": "Unknown",
-                        "temporal_context": None,
-                        "weapon_involved": None,
-                        "tactical_advice": None,
+                        **DEFAULT_ENRICHMENT_VALUES,
+                        "summary_tactical": summary_tactical
                     }
                     llm_model = "none"
                     prompt_version = "dummy_v1"
@@ -339,18 +344,8 @@ async def refresh_feed(
                 logger.debug(f"Enricher is None, using dummy enrichment for article id={db_article.id}")
                 summary_tactical = article.body_raw[:200] if len(article.body_raw) > 200 else article.body_raw
                 enrichment = {
-                    "severity": "MEDIUM",
-                    "summary_tactical": summary_tactical,
-                    "tags": [],
-                    "entities": [],
-                    "location_label": None,
-                    "lat": None,
-                    "lng": None,
-                    "graph_cluster_key": None,
-                    "crime_category": "Unknown",
-                    "temporal_context": None,
-                    "weapon_involved": None,
-                    "tactical_advice": None,
+                    **DEFAULT_ENRICHMENT_VALUES,
+                    "summary_tactical": summary_tactical
                 }
                 llm_model = "none"
                 prompt_version = "dummy_v1"

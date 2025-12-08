@@ -107,10 +107,10 @@ Body (truncated to ~2000 chars):
 
 Tasks (STRICT):
 1. Classify SEVERITY as exactly one of: LOW, MEDIUM, HIGH, CRITICAL.
-   - CRITICAL: homicide, assassination, mass-casualty event, prison escape
-   - HIGH: shootings, violent assaults, serious crashes with injuries
-   - MEDIUM: robberies, break-ins, property crime with weapons
-   - LOW: minor theft, mischief, non-injury incidents
+   - CRITICAL: homicide, assassination, mass-casualty event, prison escape, active shooter
+   - HIGH: shootings, stabbings, violent assaults, serious crashes with injuries, armed robbery, domestic violence with weapons
+   - MEDIUM: robberies, break-ins, property crime with weapons, drug trafficking, assault without weapons, DUI with injury
+   - LOW: minor theft, mischief, fraud, drug possession, traffic violations, non-injury incidents
 
 2. Summary: A brief tactical summary (1-2 sentences) for law enforcement.
 
@@ -122,13 +122,23 @@ Tasks (STRICT):
 
 6. Graph cluster key: a short string used to group related incidents (e.g. "Surrey_dial_a_dope_war").
 
-7. Crime Category: A citizen-friendly category (e.g. "Violent Crime", "Property Crime", "Traffic Incident", "Drug Offense", "Unknown"). Return "Unknown" if unsure.
+7. Crime Category: A citizen-friendly category. Choose from:
+   - "Violent Crime" (assault, homicide, shooting, stabbing, domestic violence)
+   - "Property Crime" (theft, break-in, robbery, fraud, vandalism)
+   - "Traffic Incident" (collision, DUI, dangerous driving)
+   - "Drug Offense" (possession, trafficking, production)
+   - "Sexual Offense" (assault, exploitation)
+   - "Cybercrime" (fraud, identity theft, online exploitation)
+   - "Public Safety" (missing person, suspicious activity, public disturbance)
+   - "Other" (doesn't fit above categories)
+   - "Unknown" (insufficient information to categorize)
+   Return "Unknown" if unsure.
 
 8. Temporal Context: When the incident occurred in human terms (e.g. "Early morning hours", "During rush hour", "Late night"). Return null if not specified.
 
-9. Weapon Involved: Type of weapon if mentioned (e.g. "Firearm", "Knife", "Vehicle as weapon", "None mentioned"). Return null if not mentioned or unclear.
+9. Weapon Involved: Type of weapon if mentioned (e.g. "Firearm", "Knife", "Vehicle as weapon", "Blunt object", "None mentioned"). Return null if not mentioned or unclear.
 
-10. Tactical Advice: Brief safety tip or context for citizens (e.g. "Avoid the area", "Increased patrols in effect", "No ongoing threat to public"). Return null if not applicable.
+10. Tactical Advice: Brief safety tip or context for citizens (e.g. "Avoid the area", "Increased patrols in effect", "No ongoing threat to public", "Suspect in custody"). Return null if not applicable.
 
 Return ONLY a single JSON object with this exact shape:
 {{
