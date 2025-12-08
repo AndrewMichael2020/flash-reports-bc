@@ -384,3 +384,93 @@ Security / Safety
 - CLI and sample JSON are intended for development/testing only — do not run against production DBs.
 - Both CLI and parser compute `external_id` identically to avoid duplicates.
 - No schema changes are necessary.
+
+---
+
+## [2025-12-08] Dev: Alembic vs. models reconciled, dev DB + RCMP loader stable
+
+- Reset the dev SQLite DB (`crimewatch.db`) to match current SQLAlchemy models:
+  - Confirmed `DATABASE_URL=sqlite:///./crimewatch.db` from within `backend/`.
+  - Deleted `backend/crimewatch.db`.
+  - Recreated tables via `Base.metadata.create_all(bind=engine)` (also implicitly via `import app.main`).
+  - Verified tables with `sqlite3 crimewatch.db ".tables"` → `articles_raw`, `incidents_enriched`, `sources`.
+
+- Adjusted config sync to be schema-aware:
+  - `app/config_loader.sync_sources_to_db` now uses `load_only` when querying `Source` so it never selects optional columns that may not exist in the initial Alembic migration (e.g., `use_playwright`).
+  - Inserts new `Source` rows only with columns defined in the initial schema; optional columns rely on DB defaults.
+
+- Resolved Alembic mismatch for dev:
+  - For local SQLite dev, we **do not** rely on `alembic upgrade head` to create the schema, because the initial migration doesn’t include `use_playwright` while the ORM model does.
+  - Instead, we let `Base.metadata.create_all(bind=engine)` create the dev schema (including `use_playwright`), then call `sync_sources_to_db` to populate `sources`.
+  - Alembic remains configured and can be corrected later with an “add_use_playwright_to_sources” migration for non-dev DBs.
+
+- Confirmed sources synced from YAML:
+  - Ran:
+
+    ```bash
+    cd backend
+    ENV=dev python - <<'PY'
+    from app.db import SessionLocal
+    from app.config_loader import sync_sources_to_db
+    s = SessionLocal()
+    print("Synced sources:", sync_sources_to_db(s, force_update=False))
+    s.close()
+    PY
+    ```
+
+  - Verified with:
+
+    ```bash
+    ENV=dev python - <<'PY'
+    from app.db import SessionLocal
+    from app.models import Source
+    s = SessionLocal()
+    for src in s.query(Source).order_by(Source.id):
+        print(src.id, src.agency_name, src.base_url, "parser:", src.parser_id, "active:", src.active)
+    s.close()
+    PY
+    ```
+
+  - Result: 19 sources present, including Langley RCMP (id=1, active=True) and other Fraser Valley + Metro BC + AB/WA sources.
+
+- Verified RCMP loader + parser end-to-end:
+  - From `backend/`:
+
+    ```bash
+    ENV=dev python load_rcmp_json.py \
+      --base-url "https://rcmp.ca/en/bc/langley/news" \
+      --create-source --confirm
+    ```
+
+  - Output:
+
+    ```text
+    Done. Inserted: 10, Skipped (duplicates): 0
+    ```
+
+  - Confirmed via `tools/db_inspect.py` and direct DB queries that:
+    - `articles_raw` contains 10 Langley RCMP incident articles (real incident URLs under `/bc/langley/news/...`).
+    - `ArticleRaw.title_raw`, `ArticleRaw.url`, and `ArticleRaw.body_raw` are correctly populated.
+    - Matching `incidents_enriched` rows exist with dummy enrichment.
+
+- Notes / conventions for dev:
+  - Always run backend/DB-related Python from `backend/` so `app.*` imports resolve and `sqlite:///./crimewatch.db` points to the correct file.
+  - For **SQLite dev DB reset**, prefer:
+
+    ```bash
+    cd backend
+    rm -f crimewatch.db
+    ENV=dev python - <<'PY'
+    import app.main  # triggers Base.metadata.create_all(bind=engine)
+    print("Tables created via app.main import.")
+    PY
+    ENV=dev python - <<'PY'
+    from app.db import SessionLocal
+    from app.config_loader import sync_sources_to_db
+    s = SessionLocal()
+    print("Synced sources:", sync_sources_to_db(s, force_update=False))
+    s.close()
+    PY
+    ```
+
+  - Avoid `alembic upgrade head` for this SQLite dev DB until a follow-up migration adds the `use_playwright` column to the Alembic history.

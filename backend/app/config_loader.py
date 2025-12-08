@@ -7,7 +7,7 @@ import os
 import yaml
 from pathlib import Path
 from typing import List, Dict, Any
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, load_only
 
 from app.models import Source
 
@@ -70,48 +70,58 @@ def load_sources_config() -> List[Dict[str, Any]]:
 def sync_sources_to_db(db: Session, force_update: bool = False) -> int:
     """
     Sync sources from config file to database.
-    
-    Args:
-        db: Database session
-        force_update: If True, update existing sources with config values.
-                     If False (default), only insert new sources.
-    
-    Returns:
-        Number of sources synced (inserted or updated)
+
+    This function is schema-aware: it only reads/writes columns that are known
+    to exist in the initial Alembic migration. Optional columns like
+    `use_playwright` are left to their DB default.
     """
     sources_config = load_sources_config()
     synced_count = 0
-    
+
     for source_data in sources_config:
-        # Check if source already exists (by base_url)
-        existing = db.query(Source).filter(
-            Source.base_url == source_data['base_url']
-        ).first()
-        
+        # Query only columns that we know exist in the current schema
+        existing = (
+            db.query(Source)
+            .options(
+                load_only(
+                    Source.id,
+                    Source.agency_name,
+                    Source.jurisdiction,
+                    Source.region_label,
+                    Source.source_type,
+                    Source.base_url,
+                    Source.parser_id,
+                    Source.active,
+                    Source.last_checked_at,
+                )
+            )
+            .filter(Source.base_url == source_data["base_url"])
+            .first()
+        )
+
         if existing:
             if force_update:
-                # Update existing source
-                existing.agency_name = source_data['agency_name']
-                existing.jurisdiction = source_data['jurisdiction']
-                existing.region_label = source_data['region_label']
-                existing.source_type = source_data['source_type']
-                existing.parser_id = source_data['parser_id']
-                existing.active = source_data['active']
+                existing.agency_name = source_data["agency_name"]
+                existing.jurisdiction = source_data["jurisdiction"]
+                existing.region_label = source_data["region_label"]
+                existing.source_type = source_data["source_type"]
+                existing.parser_id = source_data["parser_id"]
+                existing.active = source_data["active"]
                 synced_count += 1
         else:
-            # Insert new source
+            # Insert new source; do not touch optional/use_playwright column
             new_source = Source(
-                agency_name=source_data['agency_name'],
-                jurisdiction=source_data['jurisdiction'],
-                region_label=source_data['region_label'],
-                source_type=source_data['source_type'],
-                base_url=source_data['base_url'],
-                parser_id=source_data['parser_id'],
-                active=source_data['active']
+                agency_name=source_data["agency_name"],
+                jurisdiction=source_data["jurisdiction"],
+                region_label=source_data["region_label"],
+                source_type=source_data["source_type"],
+                base_url=source_data["base_url"],
+                parser_id=source_data["parser_id"],
+                active=source_data["active"],
             )
             db.add(new_source)
             synced_count += 1
-    
+
     db.commit()
     return synced_count
 

@@ -1,0 +1,9 @@
+/* ...existing code... */
+
+.reports-feed-scroll {
+  max-height: 60vh;   /* adjust as needed */
+  overflow-y: auto;
+  padding-right: 0.5rem; /* small space so scrollbar doesn’t cover text */
+}
+
+/* ...existing code... */
