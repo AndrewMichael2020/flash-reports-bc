@@ -8,6 +8,37 @@ from typing import Optional, Dict, Any
 from google import genai
 from google.genai import types
 
+import yaml
+from pathlib import Path
+
+
+def _load_enrichment_config() -> dict:
+    """
+    Load enrichment configuration from backend/config/enrichment.yaml.
+    Falls back to sane defaults if file missing or invalid.
+    """
+    # backend/app/enrichment/gemini_enricher.py -> backend/
+    backend_dir = Path(__file__).resolve().parents[2]
+    config_path = backend_dir / "config" / "enrichment.yaml"
+
+    default = {
+        "model_name": "gemini-1.5-flash",
+        "prompt_version": "v1.0",
+    }
+
+    if not config_path.exists():
+        return default
+
+    try:
+        with config_path.open("r", encoding="utf-8") as f:
+            data = yaml.safe_load(f) or {}
+        cfg = default.copy()
+        cfg.update({k: v for k, v in data.items() if v is not None})
+        return cfg
+    except Exception:
+        # On any parse error, just use defaults
+        return default
+
 
 class GeminiEnricher:
     """Enriches articles using Gemini Flash model."""
@@ -17,9 +48,11 @@ class GeminiEnricher:
         if not api_key:
             raise ValueError("GEMINI_API_KEY environment variable not set")
         
+        cfg = _load_enrichment_config()
+        
         self.client = genai.Client(api_key=api_key)
-        self.model_name = "gemini-1.5-flash"
-        self.prompt_version = "v1.0"
+        self.model_name: str = cfg.get("model_name", "gemini-1.5-flash")
+        self.prompt_version: str = cfg.get("prompt_version", "v1.0")
     
     async def enrich_article(
         self,
@@ -43,69 +76,71 @@ class GeminiEnricher:
         - graph_cluster_key: str | None
         """
         
-        prompt = f"""You are a tactical analyst for police intelligence. Analyze this police news release and extract structured intelligence.
+        prompt = f"""
+You are a tactical analyst for police intelligence working with official police / RCMP news releases.
 
-**Article Details:**
-Agency: {agency}
-Region: {region}
-Published: {published_at or 'Unknown'}
-Title: {title}
+Article Details:
+- Agency: {agency}
+- Region: {region}
+- Published: {published_at or 'Unknown'}
+- Title: {title}
 
-**Body:**
+Body (truncated to ~2000 chars):
 {body[:2000]}
 
-**Tasks:**
-1. **Severity Classification** (choose ONE):
-   - CRITICAL: Homicide, assassination, mass casualty, prison escape, cop killer, active shooter
-   - HIGH: Gang shooting, armed robbery, kidnapping, carjacking ring, missing person (suspicious), major drug bust
-   - MEDIUM: Drug bust, industrial theft, weapon seizure, organized theft ring
-   - LOW: Non-violent property crime, minor incidents
+Tasks (STRICT):
+1. Classify SEVERITY as exactly one of: LOW, MEDIUM, HIGH, CRITICAL.
+   - CRITICAL: homicide, assassination, mass-casualty event, prison escape
+3. Tags: short category labels (e.g. ["Gang Activity","Trafficking","Shooting"]).
+4. Entities: structured objects with type + name (e.g. gang, person, location).
+5. Location: a human-readable label plus approximate latitude/longitude if inferable.
+6. Graph cluster key: a short string used to group related incidents (e.g. "Surrey_dial_a_dope_war").
 
-2. **Tactical Summary**: One-sentence summary suitable for intelligence briefing (max 150 chars)
-
-3. **Tags**: Select 2-4 tags from: [Homicide, Gang Activity, Trafficking, Escape, Armed Assault, Carjacking, Missing Person, Theft Ring, Drug Bust, Weapons Seizure, Organized Crime]
-
-4. **Entities**: Extract specific entities (gang names, key individuals, specific locations/landmarks). Format as list of objects with "type" (Person, Group, Location) and "name".
-
-5. **Location**: Extract the most specific location mentioned. Estimate latitude/longitude coordinates for the location within {region}.
-
-6. **Graph Cluster**: Suggest a cluster/theme key if this relates to a larger pattern (e.g., "Fraser Valley Gang War", "Highway 1 Trafficking Ring", or null if standalone).
-
-**Output Format (JSON only, no markdown):**
+Return ONLY a single JSON object with this exact shape:
 {{
-  "severity": "HIGH",
-  "summary_tactical": "Armed robbery at commercial premises, suspects fled",
-  "tags": ["Armed Assault", "Organized Crime"],
+  "severity": "LOW" | "MEDIUM" | "HIGH" | "CRITICAL",
+  "summary_tactical": "string",
+  "tags": ["string", ...],
   "entities": [
-    {{"type": "Location", "name": "Industrial Ave, Langley"}},
-    {{"type": "Group", "name": "Suspect gang affiliation"}}
+    {{"type": "Gang", "name": "UN Gang"}},
+    {{"type": "Person", "name": "John Doe"}},
+    {{"type": "Location", "name": "Whalley"}}
   ],
-  "location_label": "Langley, BC - Industrial Ave",
-  "lat": 49.1042,
-  "lng": -122.6604,
-  "graph_cluster_key": "Fraser Valley Property Crime"
+  "location_label": "string or null",
+  "lat": 49.123 or null,
+  "lng": -122.456 or null,
+  "graph_cluster_key": "string or null"
 }}
 """
-        
+
         try:
-            response = self.client.models.generate_content(
+            response = await self.client.models.generate_content_async(
                 model=self.model_name,
                 contents=prompt,
                 config=types.GenerateContentConfig(
                     response_mime_type="application/json",
-                )
+                ),
             )
-            
+
             # Parse JSON response
-            result = json.loads(response.text)
-            
+            result = json.loads(response.text or "{}")
+
             # Validate required fields
             required_fields = ["severity", "summary_tactical", "tags", "entities"]
             for field in required_fields:
                 if field not in result:
                     raise ValueError(f"Missing required field: {field}")
             
-            return result
+            return {
+                "severity": result.get("severity", "MEDIUM"),
+                "summary_tactical": result.get("summary_tactical", title[:150] if title else ""),
+                "tags": result.get("tags") or [],
+                "entities": result.get("entities") or [],
+                "location_label": result.get("location_label"),
+                "lat": result.get("lat"),
+                "lng": result.get("lng"),
+                "graph_cluster_key": result.get("graph_cluster_key"),
+            }
             
         except Exception as e:
             print(f"Enrichment failed: {e}")
@@ -118,5 +153,5 @@ Title: {title}
                 "location_label": None,
                 "lat": None,
                 "lng": None,
-                "graph_cluster_key": None
+                "graph_cluster_key": None,
             }

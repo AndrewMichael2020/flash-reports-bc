@@ -215,10 +215,14 @@ async def refresh_feed(
     else:
         try:
             enricher = GeminiEnricher()
-            logger.info("Gemini enricher initialized")
+            logger.info(f"Gemini enricher initialized with model={enricher.model_name} prompt_version={enricher.prompt_version}")
         except ValueError as e:
+            # This is the "no GEMINI_API_KEY" case
             logger.warning(f"Gemini enrichment not available, using dummy enrichment: {e}")
-    
+        except Exception as e:
+            # Any other init failure
+            logger.error(f"Gemini enricher initialization failed, using dummy enrichment: {e}")
+
     new_articles_count = 0
     
     # Process each source
@@ -301,6 +305,7 @@ async def refresh_feed(
             # Enrich with Gemini or use dummy enrichment
             if enricher:
                 try:
+                    logger.debug(f"Calling GeminiEnricher for article id={db_article.id} title='{article.title_raw[:80]}'")
                     enrichment = await enricher.enrich_article(
                         title=article.title_raw,
                         body=article.body_raw,
@@ -311,7 +316,7 @@ async def refresh_feed(
                     llm_model = enricher.model_name
                     prompt_version = enricher.prompt_version
                 except Exception as e:
-                    logger.error(f"Enrichment failed for article {article.title_raw[:50]}: {e}")
+                    logger.error(f"Enrichment failed for article id={db_article.id} title='{article.title_raw[:80]}': {e}")
                     # Fall back to dummy enrichment
                     summary_tactical = article.body_raw[:200] if len(article.body_raw) > 200 else article.body_raw
                     enrichment = {
@@ -327,7 +332,7 @@ async def refresh_feed(
                     llm_model = "none"
                     prompt_version = "dummy_v1"
             else:
-                # Dummy enrichment
+                logger.debug(f"Enricher is None, using dummy enrichment for article id={db_article.id}")
                 summary_tactical = article.body_raw[:200] if len(article.body_raw) > 200 else article.body_raw
                 enrichment = {
                     "severity": "MEDIUM",
@@ -341,7 +346,7 @@ async def refresh_feed(
                 }
                 llm_model = "none"
                 prompt_version = "dummy_v1"
-            
+
             enriched = IncidentEnriched(
                 id=db_article.id,
                 severity=enrichment["severity"],
@@ -357,7 +362,7 @@ async def refresh_feed(
             )
             db.add(enriched)
             new_articles_count += 1
-            logger.debug(f"Enriched article: {article.title_raw[:50]}")
+            logger.debug(f"Enriched article id={db_article.id} llm_model={llm_model} prompt_version={prompt_version}")
         
         # Update last_checked_at
         source.last_checked_at = datetime.now(timezone.utc)

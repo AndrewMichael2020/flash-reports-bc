@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { Incident, NetworkData, Severity } from './types';
 import * as BackendClient from './services/backendClient';
 import NetworkGraph from './components/NetworkGraph';
@@ -19,56 +19,91 @@ const REGIONS = [
 ];
 
 function App() {
-  const [region, setRegion] = useState(REGIONS[0]); // Default to first region (Fraser Valley, BC)
+  const [region, setRegion] = useState(REGIONS[0]);
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [graphData, setGraphData] = useState<NetworkData>({ nodes: [], links: [] });
   const [selectedIncidentId, setSelectedIncidentId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [status, setStatus] = useState("System Ready");
-  
-  // Filters
   const [activeFilters, setActiveFilters] = useState<string[]>([]);
 
-  const loadData = useCallback(async () => {
+  // --- initial load: read-only, no refresh ---
+  const loadInitialData = useCallback(async () => {
     setIsLoading(true);
-    setStatus(`Refreshing ${region} feeds...`);
-    setIncidents([]);
-    setGraphData({ nodes: [], links: [] });
-    setActiveFilters([]); 
+    setStatus(`Loading existing ${region} incidents from DB...`);
 
     try {
-      // 1. Trigger refresh (scrape new articles)
-      const refreshResult = await BackendClient.refreshFeed(region);
-      
-      if (refreshResult.new_articles > 0) {
-        setStatus(`Found ${refreshResult.new_articles} new articles. Loading incidents...`);
-      } else {
-        setStatus(`No new articles. Loading ${refreshResult.total_incidents} existing incidents...`);
-      }
-
-      // 2. Fetch incidents, graph, and map data in parallel
       const [incidentsData, graphResult, mapResult] = await Promise.all([
         BackendClient.getIncidents(region),
         BackendClient.getGraph(region),
-        BackendClient.getMap(region)
+        BackendClient.getMap(region),
       ]);
 
       setIncidents(incidentsData.incidents);
       setGraphData({ nodes: graphResult.nodes, links: graphResult.links });
-      
-      setStatus(`Monitoring complete. ${incidentsData.incidents.length} events logged.`);
+
+      if (incidentsData.incidents.length > 0) {
+        setStatus(`Loaded ${incidentsData.incidents.length} existing incidents.`);
+      } else {
+        setStatus(`No incidents found yet for ${region}. Click REFRESH FEED to fetch.`);
+      }
     } catch (error) {
-      console.error('Failed to load data from backend:', error);
-      setStatus(`System Error: ${error instanceof Error ? error.message : 'Failed to acquire feed'}`);
+      console.error("Failed to load initial data from backend:", error);
+      setStatus(
+        `System Error (initial load): ${
+          error instanceof Error ? error.message : "Failed to query existing data"
+        }`,
+      );
     } finally {
       setIsLoading(false);
     }
   }, [region]);
 
   useEffect(() => {
-    // Initial load
-    loadData();
-  }, [loadData]);
+    // On first mount, load whatever is already in the DB for the default region.
+    // Do not call /api/refresh here.
+    loadInitialData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // run once on mount
+
+  // --- explicit refresh: calls POST /api/refresh then reloads data ---
+  const loadData = useCallback(async () => {
+    setIsLoading(true);
+    setStatus(`Refreshing ${region} feeds...`);
+    setIncidents([]);
+    setGraphData({ nodes: [], links: [] });
+    setActiveFilters([]);
+
+    try {
+      const refreshResult = await BackendClient.refreshFeed(region);
+
+      if (refreshResult.new_articles > 0) {
+        setStatus(`Found ${refreshResult.new_articles} new articles. Loading incidents...`);
+      } else {
+        setStatus(`No new articles. Loading ${refreshResult.total_incidents} existing incidents...`);
+      }
+
+      const [incidentsData, graphResult, mapResult] = await Promise.all([
+        BackendClient.getIncidents(region),
+        BackendClient.getGraph(region),
+        BackendClient.getMap(region),
+      ]);
+
+      setIncidents(incidentsData.incidents);
+      setGraphData({ nodes: graphResult.nodes, links: graphResult.links });
+
+      setStatus(`Monitoring complete. ${incidentsData.incidents.length} events logged.`);
+    } catch (error) {
+      console.error("Failed to load data from backend:", error);
+      setStatus(
+        `System Error: ${
+          error instanceof Error ? error.message : "Failed to acquire feed"
+        }`,
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  }, [region]);
 
   const handleIncidentSelect = (incident: Incident) => {
     setSelectedIncidentId(incident.id);
@@ -168,20 +203,28 @@ function App() {
 
         <div className="flex items-center gap-4">
           <div className="flex items-center bg-slate-800 rounded px-3 py-1.5 border border-slate-700">
-            <span className={`w-2 h-2 rounded-full mr-2 ${isLoading ? 'bg-yellow-400 animate-pulse' : 'bg-green-500'}`}></span>
+            <span
+              className={`w-2 h-2 rounded-full mr-2 ${
+                isLoading ? "bg-yellow-400 animate-pulse" : "bg-green-500"
+              }`}
+            ></span>
             <span className="text-xs font-mono text-slate-300">{status}</span>
           </div>
 
-          <select 
+          <select
             className="bg-slate-800 border border-slate-700 text-sm rounded px-3 py-1.5 text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
             value={region}
             onChange={(e) => setRegion(e.target.value)}
             disabled={isLoading}
           >
-            {REGIONS.map(r => <option key={r} value={r}>{r}</option>)}
+            {REGIONS.map((r) => (
+              <option key={r} value={r}>
+                {r}
+              </option>
+            ))}
           </select>
-          
-          <button 
+
+          <button
             onClick={loadData}
             disabled={isLoading}
             className="bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold py-2 px-4 rounded transition-colors disabled:opacity-50"
@@ -195,17 +238,17 @@ function App() {
       <main className="flex-1 grid grid-cols-12 gap-0 overflow-hidden">
         
         {/* Left Sidebar: Feed */}
-        <aside className="col-span-3 bg-slate-900 border-r border-slate-800 p-4 flex flex-col h-full z-10 shadow-[10px_0_20px_rgba(0,0,0,0.1)]">
-          <div className="flex justify-between items-center mb-4">
+        <aside className="col-span-3 bg-slate-900 border-r border-slate-800 p-4 flex flex-col h-full min-h-0 z-10 shadow-[10px_0_20px_rgba(0,0,0,0.1)]">
+          <div className="flex justify-between items-center mb-4 flex-none">
             <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Reports Feed</h2>
             <span className="text-xs bg-slate-800 px-2 py-0.5 rounded text-slate-500">
               {filteredIncidents.length} / {incidents.length}
             </span>
           </div>
           
-          <div className="flex-1 overflow-hidden">
-            <IncidentFeed 
-              incidents={filteredIncidents} 
+          <div className="flex-1 min-h-0 overflow-y-auto">
+            <IncidentFeed
+              incidents={filteredIncidents}
               onSelect={handleIncidentSelect}
               selectedIncidentId={selectedIncidentId}
             />

@@ -26,7 +26,7 @@ export const fetchRecentIncidents = async (region: string): Promise<Incident[]> 
        - Gang Warfare (High/Critical)
        - Kidnapping
        - Commercial/Industrial Theft Rings (Medium/High)
-    3. SOURCES: Local police, state police, specialized units, port authorities, prisons.
+    3. SOURCES: Local police, provincial state police, specialized units, port authorities, prisons.
     4. EXCLUDE: Military operations, social media rumors.
     
     Return a list of at least 5-7 distinct event summaries.
