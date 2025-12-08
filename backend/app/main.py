@@ -42,7 +42,11 @@ def verify_database_schema():
     """
     Verify that the database schema is up-to-date.
     Checks for required columns that were added in recent migrations.
-    Returns True if schema is valid, False otherwise.
+    
+    Returns:
+        tuple: (is_valid: bool, message: str)
+            - is_valid: True if schema is valid, False otherwise
+            - message: Description of validation result or error
     """
     inspector = inspect(engine)
     
@@ -50,7 +54,8 @@ def verify_database_schema():
     if 'incidents_enriched' not in inspector.get_table_names():
         return False, "Table 'incidents_enriched' does not exist. Run 'alembic upgrade head' to create tables."
     
-    # Check for required columns added in migration faa672a4c13f
+    # Check for required columns (added in various migrations)
+    # These columns are essential for the current version of the application
     required_columns = ['crime_category', 'temporal_context', 'weapon_involved', 'tactical_advice']
     existing_columns = [col['name'] for col in inspector.get_columns('incidents_enriched')]
     
