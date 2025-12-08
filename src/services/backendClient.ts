@@ -1,9 +1,23 @@
 /**
  * Backend API client for Crimewatch Intel.
  * Provides functions to interact with the FastAPI backend.
+ * 
+ * In DEV mode (default), uses same-origin relative paths (e.g., "/api/refresh")
+ * which Vite proxies to backend. In production, set VITE_API_BASE_URL to the
+ * actual backend URL.
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+// Default to "/" for same-origin requests (DEV mode with Vite proxy)
+// In production, set VITE_API_BASE_URL to full backend URL
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/';
+
+/**
+ * Normalize API base URL to ensure proper path construction.
+ * Removes trailing slash for consistent path joining.
+ */
+function normalizeBaseUrl(base: string): string {
+  return base.endsWith('/') ? base.slice(0, -1) : base;
+}
 
 export interface RefreshResponse {
   region: string;
@@ -32,7 +46,8 @@ export interface MapResponse {
  * Calls POST /api/refresh on the backend.
  */
 export async function refreshFeed(region: string): Promise<RefreshResponse> {
-  const response = await fetch(`${API_BASE_URL}/api/refresh`, {
+  const baseUrl = normalizeBaseUrl(API_BASE_URL);
+  const response = await fetch(`${baseUrl}/api/refresh`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -60,7 +75,8 @@ export async function getIncidents(
     limit: limit.toString(),
   });
 
-  const response = await fetch(`${API_BASE_URL}/api/incidents?${params}`, {
+  const baseUrl = normalizeBaseUrl(API_BASE_URL);
+  const response = await fetch(`${baseUrl}/api/incidents?${params}`, {
     method: 'GET',
     headers: {
       'Content-Type': 'application/json',
@@ -81,7 +97,8 @@ export async function getIncidents(
 export async function getGraph(region: string): Promise<GraphResponse> {
   const params = new URLSearchParams({ region });
 
-  const response = await fetch(`${API_BASE_URL}/api/graph?${params}`, {
+  const baseUrl = normalizeBaseUrl(API_BASE_URL);
+  const response = await fetch(`${baseUrl}/api/graph?${params}`, {
     method: 'GET',
     headers: {
       'Content-Type': 'application/json',
@@ -102,7 +119,8 @@ export async function getGraph(region: string): Promise<GraphResponse> {
 export async function getMap(region: string): Promise<MapResponse> {
   const params = new URLSearchParams({ region });
 
-  const response = await fetch(`${API_BASE_URL}/api/map?${params}`, {
+  const baseUrl = normalizeBaseUrl(API_BASE_URL);
+  const response = await fetch(`${baseUrl}/api/map?${params}`, {
     method: 'GET',
     headers: {
       'Content-Type': 'application/json',

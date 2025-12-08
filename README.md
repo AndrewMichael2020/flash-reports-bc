@@ -57,39 +57,44 @@ See [STRATEGY.md](STRATEGY.ms) for detailed architecture documentation.
 
 ### GitHub Codespaces Setup
 
-If you're running this in GitHub Codespaces:
+If you're running this in GitHub Codespaces, see [DEV_SETUP.md](DEV_SETUP.md) for detailed instructions.
+
+**Quick Start:**
 
 1. **Create environment files**:
-   - Backend: Create `backend/.env` (copy from `backend/.env.example`)
-   - Frontend: Create `.env` (copy from `.env.example`)
+   ```bash
+   # Backend
+   cd backend
+   cp .env.example .env
+   # Edit backend/.env and add your GEMINI_API_KEY
+   
+   # Frontend
+   cd ..
+   cp .env.example .env
+   # Leave VITE_API_BASE_URL unset (default is "/" for proxy mode)
+   ```
 
-2. **Update Frontend API URL**:
-   - Open `.env` in the root directory
-   - Update `VITE_API_BASE_URL` to your Codespaces backend URL:
-     ```
-     VITE_API_BASE_URL=https://YOUR-CODESPACE-NAME-8000.app.github.dev
-     ```
-   - Replace `YOUR-CODESPACE-NAME` with your actual Codespace URL prefix
-
-3. **Start Backend** (in one terminal):
+2. **Start Backend** (in one terminal):
    ```bash
    cd backend
    python3 -m venv venv
    source venv/bin/activate
    pip install -r requirements.txt
    alembic upgrade head
-   uvicorn app.main:app --host 0.0.0.0 --port 8000
+   ENV=dev uvicorn app.main:app --host 0.0.0.0 --port 8000
    ```
 
-4. **Start Frontend** (in another terminal):
+3. **Start Frontend** (in another terminal):
    ```bash
    npm install
-   npm run dev
+   npm run dev -- --host 0.0.0.0 --port 3000
    ```
 
-5. **Access the Application**:
-   - The frontend will be available at your Codespace URL on port 3000
-   - The backend API docs will be at your Codespace URL on port 8000/docs
+4. **Access the Application**:
+   - Frontend: Open the URL shown by Vite (Codespaces will forward port 3000)
+   - Backend API docs: Your Codespace URL on port 8000 + `/docs`
+
+**Important:** Do NOT set `VITE_API_BASE_URL` to your Codespaces backend URL. The frontend uses Vite's proxy in development to avoid CORS issues. See [DEV_SETUP.md](DEV_SETUP.md) for details.
 
 ### Local Development Setup
 
