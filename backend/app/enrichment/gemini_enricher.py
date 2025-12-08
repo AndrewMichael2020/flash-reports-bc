@@ -10,6 +10,9 @@ from google.genai import types
 
 import yaml
 from pathlib import Path
+from app.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 def _load_enrichment_config() -> dict:
@@ -46,13 +49,22 @@ class GeminiEnricher:
     def __init__(self):
         api_key = os.getenv("GEMINI_API_KEY")
         if not api_key:
+            logger.error("GEMINI_API_KEY environment variable not set")
             raise ValueError("GEMINI_API_KEY environment variable not set")
         
+        logger.info("GEMINI_API_KEY found, initializing Gemini client")
         cfg = _load_enrichment_config()
         
-        self.client = genai.Client(api_key=api_key)
+        try:
+            self.client = genai.Client(api_key=api_key)
+            logger.info("Gemini client initialized successfully")
+        except Exception as e:
+            logger.error(f"Failed to initialize Gemini client: {e}")
+            raise
+        
         self.model_name: str = cfg.get("model_name", "gemini-1.5-flash")
         self.prompt_version: str = cfg.get("prompt_version", "v1.0")
+        logger.info(f"GeminiEnricher configured: model_name={self.model_name}, prompt_version={self.prompt_version}")
     
     async def enrich_article(
         self,
@@ -143,7 +155,7 @@ Return ONLY a single JSON object with this exact shape:
             }
             
         except Exception as e:
-            print(f"Enrichment failed: {e}")
+            logger.error(f"Enrichment failed for title='{title[:80]}...': {e}")
             # Return minimal valid enrichment
             return {
                 "severity": "MEDIUM",
