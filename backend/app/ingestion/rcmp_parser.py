@@ -258,7 +258,8 @@ class RCMPParser(SourceParser):
             # --- PATTERN 1: Text-slug agencies (no digits) ---
             known_slug_paths = [
                 "/blog/news_releases/",  # Abbotsford Police Department
-                "/news-events/news/",    # Surrey Police Service
+                "/news-events/news/",    # Surrey Police Service (old pattern)
+                "/news-releases/",       # Surrey Police Service (new pattern)
             ]
             for prefix in known_slug_paths:
                 if prefix in path:

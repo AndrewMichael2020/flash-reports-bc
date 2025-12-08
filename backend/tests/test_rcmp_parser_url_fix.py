@@ -49,10 +49,10 @@ class TestRCMPParserURLResolution:
         assert "Theft Investigation" in articles[1]['title']
 
     def test_surrey_relative_url_resolution(self):
-        """Test that Surrey Police relative URLs are resolved correctly."""
+        """Test that Surrey Police relative URLs are resolved correctly (old pattern)."""
         parser = RCMPParser(use_playwright=False)
         
-        # Mock HTML from Surrey Police with relative links
+        # Mock HTML from Surrey Police with relative links (old pattern)
         mock_html = """
         <html>
             <body>
@@ -79,6 +79,44 @@ class TestRCMPParserURLResolution:
         
         # Title should be extracted
         assert "Armed Robbery Investigation" in articles[0]['title']
+
+    def test_surrey_new_pattern_url_resolution(self):
+        """Test that Surrey Police new /news-releases/ pattern URLs are resolved correctly."""
+        parser = RCMPParser(use_playwright=False)
+        
+        # Mock HTML from Surrey Police with relative links (new pattern)
+        mock_html = """
+        <html>
+            <body>
+                <div class="news-list">
+                    <article class="news-item">
+                        <h3><a href="/news-releases/suspect-arrested-following-robbery">Suspect Arrested Following Armed Robbery Investigation</a></h3>
+                        <time datetime="2024-12-01">December 1, 2024</time>
+                    </article>
+                    <article class="news-item">
+                        <h3><a href="/news-releases/vehicle-pursuit-ends-in-arrest">Vehicle Pursuit Ends in Arrest on Highway 1</a></h3>
+                        <time datetime="2024-12-02">December 2, 2024</time>
+                    </article>
+                </div>
+            </body>
+        </html>
+        """
+        
+        soup = BeautifulSoup(mock_html, 'html.parser')
+        listing_url = "https://www.surreypolice.ca/news-releases"
+        
+        articles = parser._extract_articles_from_soup(soup, listing_url)
+        
+        # Should extract 2 articles
+        assert len(articles) == 2
+        
+        # URLs should be resolved relative to surreypolice.ca, not rcmp.ca
+        assert articles[0]['url'] == "https://www.surreypolice.ca/news-releases/suspect-arrested-following-robbery"
+        assert articles[1]['url'] == "https://www.surreypolice.ca/news-releases/vehicle-pursuit-ends-in-arrest"
+        
+        # Titles should be extracted
+        assert "Suspect Arrested" in articles[0]['title']
+        assert "Vehicle Pursuit" in articles[1]['title']
 
     def test_rcmp_still_works(self):
         """Test that RCMP news (with digits) still works correctly."""
