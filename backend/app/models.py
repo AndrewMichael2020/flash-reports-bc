@@ -70,3 +70,9 @@ class IncidentEnriched(Base):
     llm_model = Column(Text, nullable=False)
     prompt_version = Column(Text, nullable=False)
     processed_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    
+    # Citizen-facing fields added 2025-12-08
+    crime_category = Column(Text, nullable=False, server_default='Unknown')
+    temporal_context = Column(Text, nullable=True)
+    weapon_involved = Column(Text, nullable=True)
+    tactical_advice = Column(Text, nullable=True)
