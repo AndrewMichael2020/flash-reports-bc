@@ -477,7 +477,7 @@ async def background_refresh_task(job_id: str, region: str):
     
     try:
         # Give the parent transaction time to commit
-        import asyncio
+        # Note: asyncio is imported at module level
         await asyncio.sleep(0.1)
         
         # Refresh the session to see any committed changes

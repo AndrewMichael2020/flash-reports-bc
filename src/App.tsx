@@ -17,6 +17,9 @@ const REGIONS = [
   "Seattle Metro, WA"
 ];
 
+// UI constants
+const JOB_ID_DISPLAY_LENGTH = 8; // Number of characters to show from job ID in status messages
+
 function App() {
   const [region, setRegion] = useState(REGIONS[0]);
   const [incidents, setIncidents] = useState<Incident[]>([]);
@@ -76,7 +79,7 @@ function App() {
       const asyncResponse = await BackendClient.refreshFeedAsync(region);
       const jobId = asyncResponse.job_id;
       
-      setStatus(`Refresh job ${jobId.substring(0, 8)}... started. Fetching data...`);
+      setStatus(`Refresh job ${jobId.substring(0, JOB_ID_DISPLAY_LENGTH)}... started. Fetching data...`);
 
       // Poll for job completion
       const pollInterval = 3000; // 3 seconds
