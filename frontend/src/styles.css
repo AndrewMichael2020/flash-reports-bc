@@ -1,9 +1,9 @@
 /* ...existing code... */
 
 .reports-feed-scroll {
-  max-height: 60vh;   /* adjust as needed */
+  max-height: 60vh;   /* show most of the viewport, but allow scroll */
   overflow-y: auto;
-  padding-right: 0.5rem; /* small space so scrollbar doesn’t cover text */
+  padding-right: 0.5rem; /* keep text clear of scrollbar */
 }
 
 /* ...existing code... */
