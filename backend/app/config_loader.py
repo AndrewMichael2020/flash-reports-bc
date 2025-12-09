@@ -3,7 +3,6 @@ Configuration loader for Crimewatch Intel backend.
 
 Loads sources from YAML configuration file and syncs them to the database.
 """
-import os
 import yaml
 from pathlib import Path
 from typing import List, Dict, Any
@@ -16,54 +15,59 @@ def get_config_path() -> Path:
     """Get the path to the sources configuration file."""
     backend_dir = Path(__file__).parent.parent
     config_path = backend_dir / "config" / "sources.yaml"
-    
+
     if not config_path.exists():
         raise FileNotFoundError(
             f"Configuration file not found: {config_path}\n"
-            "Please ensure config/sources.yaml exists in the backend directory."
+            "Please ensure backend/config/sources.yaml exists."
         )
-    
+
     return config_path
 
 
 def load_sources_config() -> List[Dict[str, Any]]:
     """
     Load sources from the YAML configuration file.
-    
-    Returns:
-        List of source dictionaries with keys:
-        - agency_name
-        - jurisdiction
-        - region_label
-        - source_type
-        - base_url
-        - parser_id
-        - active
-        - notes (optional)
+
+    Expected structure:
+
+    sources:
+      - agency_name: "Victoria Police Department"
+        jurisdiction: "BC"
+        region_label: "Victoria, BC"
+        source_type: "MUNICIPAL_PD_NEWS"
+        base_url: "https://vicpd.ca/about-us/news-releases-dashboard/"
+        parser_id: "municipal_list"
+        active: true
+        notes: "..."
     """
     config_path = get_config_path()
-    
-    with open(config_path, 'r') as f:
-        config = yaml.safe_load(f)
-    
-    if not config or 'sources' not in config:
-        raise ValueError("Invalid configuration file: missing 'sources' key")
-    
-    sources = config['sources']
-    
-    # Validate required fields
+
+    with open(config_path, "r", encoding="utf-8") as f:
+        config = yaml.safe_load(f) or {}
+
+    if "sources" not in config:
+        raise ValueError(f"Invalid config at {config_path}: missing 'sources' key")
+
+    sources = config["sources"] or []
+
     required_fields = [
-        'agency_name', 'jurisdiction', 'region_label',
-        'source_type', 'base_url', 'parser_id', 'active'
+        "agency_name",
+        "jurisdiction",
+        "region_label",
+        "source_type",
+        "base_url",
+        "parser_id",
+        "active",
     ]
-    
+
     for i, source in enumerate(sources):
-        for field in required_fields:
-            if field not in source:
-                raise ValueError(
-                    f"Source at index {i} missing required field: {field}"
-                )
-    
+        missing = [f for f in required_fields if f not in source]
+        if missing:
+            raise ValueError(
+                f"Source entry #{i} missing required fields {missing}: {source}"
+            )
+
     return sources
 
 
@@ -71,15 +75,19 @@ def sync_sources_to_db(db: Session, force_update: bool = False) -> int:
     """
     Sync sources from config file to database.
 
-    This function is schema-aware: it only reads/writes columns that are known
-    to exist in the initial Alembic migration. Optional columns like
-    `use_playwright` are left to their DB default.
+    Schema-aware: only reads/writes columns that exist in initial Alembic migration.
+    Optional columns like `use_playwright` are left to their DB default.
+
+    Behavior:
+    - Match existing rows by base_url.
+    - Always sync `active` to match YAML.
+    - When force_update=True, also sync agency_name, jurisdiction,
+      region_label, source_type, parser_id.
     """
     sources_config = load_sources_config()
     synced_count = 0
 
     for source_data in sources_config:
-        # Query only columns that we know exist in the current schema
         existing = (
             db.query(Source)
             .options(
@@ -100,16 +108,36 @@ def sync_sources_to_db(db: Session, force_update: bool = False) -> int:
         )
 
         if existing:
+            changed = False
+
+            # Always sync `active` so YAML wins for enabling/disabling
+            new_active = bool(source_data["active"])
+            if existing.active != new_active:
+                existing.active = new_active
+                changed = True
+
             if force_update:
-                existing.agency_name = source_data["agency_name"]
-                existing.jurisdiction = source_data["jurisdiction"]
-                existing.region_label = source_data["region_label"]
-                existing.source_type = source_data["source_type"]
-                existing.parser_id = source_data["parser_id"]
-                existing.active = source_data["active"]
+                if existing.agency_name != source_data["agency_name"]:
+                    existing.agency_name = source_data["agency_name"]
+                    changed = True
+                if existing.jurisdiction != source_data["jurisdiction"]:
+                    existing.jurisdiction = source_data["jurisdiction"]
+                    changed = True
+                if existing.region_label != source_data["region_label"]:
+                    existing.region_label = source_data["region_label"]
+                    changed = True
+                if existing.source_type != source_data["source_type"]:
+                    existing.source_type = source_data["source_type"]
+                    changed = True
+                if existing.parser_id != source_data["parser_id"]:
+                    existing.parser_id = source_data["parser_id"]
+                    changed = True
+
+            if changed:
                 synced_count += 1
+
         else:
-            # Insert new source; do not touch optional/use_playwright column
+            # Insert new source
             new_source = Source(
                 agency_name=source_data["agency_name"],
                 jurisdiction=source_data["jurisdiction"],
@@ -117,7 +145,7 @@ def sync_sources_to_db(db: Session, force_update: bool = False) -> int:
                 source_type=source_data["source_type"],
                 base_url=source_data["base_url"],
                 parser_id=source_data["parser_id"],
-                active=source_data["active"],
+                active=bool(source_data["active"]),
             )
             db.add(new_source)
             synced_count += 1
@@ -127,28 +155,12 @@ def sync_sources_to_db(db: Session, force_update: bool = False) -> int:
 
 
 def get_available_regions() -> List[str]:
-    """
-    Get list of all unique regions from the configuration.
-    
-    Returns:
-        Sorted list of unique region labels
-    """
+    """Return sorted list of unique region labels from config."""
     sources_config = load_sources_config()
-    regions = set(source['region_label'] for source in sources_config)
-    return sorted(regions)
+    return sorted({s["region_label"] for s in sources_config})
 
 
 def get_active_parsers() -> List[str]:
-    """
-    Get list of all unique parser IDs used by active sources.
-    
-    Returns:
-        Sorted list of unique parser IDs
-    """
+    """Return sorted list of parser_ids used by active sources in config."""
     sources_config = load_sources_config()
-    parsers = set(
-        source['parser_id'] 
-        for source in sources_config 
-        if source.get('active', False)
-    )
-    return sorted(parsers)
+    return sorted({s["parser_id"] for s in sources_config if s.get("active", False)})

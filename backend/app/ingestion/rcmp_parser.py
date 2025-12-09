@@ -15,7 +15,7 @@ import hashlib
 import asyncio
 import logging
 from typing import Optional, List, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from urllib.parse import urljoin
 from bs4 import BeautifulSoup
 from dateutil import parser as date_parser
@@ -124,13 +124,23 @@ class RCMPParser(SourceParser):
         """
         Convert scraped item dictionaries into RawArticle dataclass list, applying 'since' filter.
         """
+        def _to_utc_aware(dt: Optional[datetime]) -> Optional[datetime]:
+            if dt is None:
+                return None
+            if dt.tzinfo is None:
+                return dt.replace(tzinfo=timezone.utc)
+            return dt.astimezone(timezone.utc)
+
+        since_utc = _to_utc_aware(since)
+
         raw_articles = []
         for item in items[:RCMP_MAX_ARTICLES]:
             # Use shared date parsing utility
             published_at = parse_flexible_date(item.get('date_str', ''))
+            published_at_utc = _to_utc_aware(published_at)
             
             # If we have since and the article is older or equal, skip it
-            if since and published_at and published_at <= since:
+            if since_utc and published_at_utc and published_at_utc <= since_utc:
                 continue
             # compute external id
             key = (item['url'] or "") + (item.get('title') or "")
@@ -139,7 +149,7 @@ class RCMPParser(SourceParser):
                 external_id=external_id,
                 url=item['url'],
                 title_raw=item.get('title') or "",
-                published_at=published_at,
+                published_at=published_at_utc,
                 body_raw=(item.get('body') or ""),
                 raw_html=item.get('raw_html')
             ))
@@ -149,6 +159,16 @@ class RCMPParser(SourceParser):
         """
         Use Playwright to fetch the listing and then each article page.
         """
+        # Normalize 'since' once at the top to avoid naive/aware comparison issues
+        def _to_utc_aware(dt: Optional[datetime]) -> Optional[datetime]:
+            if dt is None:
+                return None
+            if dt.tzinfo is None:
+                return dt.replace(tzinfo=timezone.utc)
+            return dt.astimezone(timezone.utc)
+
+        since_utc = _to_utc_aware(since)
+
         results = []
         async with async_playwright() as p:
             browser = await p.chromium.launch(headless=True)
@@ -173,8 +193,9 @@ class RCMPParser(SourceParser):
                         
                         # Use shared date parsing utility
                         published_at = parse_flexible_date(meta.get('date_str', ''))
-                        
-                        if since and published_at and published_at <= since:
+                        published_at_utc = _to_utc_aware(published_at)
+
+                        if since_utc and published_at_utc and published_at_utc <= since_utc:
                             continue
                         results.append(meta)
                         await asyncio.sleep(0.3)
